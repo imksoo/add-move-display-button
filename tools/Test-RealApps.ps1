@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$ExecutablePath,
     [string]$OutputDirectory = 'real-app-evidence',
@@ -139,13 +139,15 @@ function Test-WindowState($spec,$target,[string]$mode) {
         Require ($caption.Window.Contains($bounds)) 'Overlay outside target bounds.'
         Require ($work.Contains($bounds)) 'Overlay outside monitor work area.'
         if ($caption.DwmControlsOk) { Require (-not $bounds.Overlaps($caption.Controls)) 'Overlay overlaps the native caption controls.' }
+        if ($spec.RequireNativeMatch) { Require $caption.TitleQueryOk 'Required native caption measurement failed.' }
         if ($caption.TitleQueryOk) {
             $validButtons = @(2,3,5 | Where-Object { $caption.Title.Buttons[$_].Width -gt 0 -and $caption.Title.Buttons[$_].Height -gt 0 -and (($caption.Title.States[$_] -band 0x18000) -eq 0) })
+            if ($spec.RequireNativeMatch) { Require ($validButtons.Count -gt 0) 'Required native caption measurement is empty.' }
             if ($validButtons.Count) {
                 $reference = $caption.Title.Buttons[$validButtons[0]]
                 $matched = $bounds.Width -eq $reference.Width -and $bounds.Top -eq $reference.Top -and $bounds.Bottom -eq $reference.Bottom
                 $result.nativeSizeMatched = $matched
-                if ($spec.RequireNativeMatch) { Require $matched 'Default-frame app did not match native caption-button dimensions.' }
+                if ($spec.RequireNativeMatch) { Require $matched 'Overlay did not match the required native caption-button width and vertical alignment.' }
             }
         }
         $oh = [IntPtr]$overlay.Handle
@@ -192,7 +194,7 @@ function Test-WindowState($spec,$target,[string]$mode) {
 $hasModernNotepad = @($packages | Where-Object Name -eq 'Microsoft.WindowsNotepad').Count -gt 0
 $specs = @(
     @{Name='Notepad'; Kind=$(if ($hasModernNotepad) {'Package'} else {'Notepad'}); Package='Microsoft.WindowsNotepad'; RequireNativeMatch=(-not $hasModernNotepad)},
-    @{Name='Explorer'; Kind='Explorer'; Package=$null; RequireNativeMatch=$false},
+    @{Name='Explorer'; Kind='Explorer'; Package=$null; RequireNativeMatch=$true},
     @{Name='TaskScheduler'; Kind='Mmc'; Package=$null; RequireNativeMatch=$true},
     @{Name='MicrosoftStore'; Kind='Package'; Package='Microsoft.WindowsStore'; RequireNativeMatch=$false},
     @{Name='Calculator'; Kind='Package'; Package='Microsoft.WindowsCalculator'; RequireNativeMatch=$false},

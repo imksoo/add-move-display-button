@@ -132,6 +132,7 @@ private:
                            r.right - 3};
         const int ys[5] = {(r.top + r.bottom) / 2, r.top + 2, r.top + 2, r.bottom - 3,
                            r.bottom - 3};
+        HWND centerInput = nullptr;
         for (int i = 0; i < 5; ++i) {
             // WM_NCHITTEST is about the receiving HWND, NOT the whole visual tree.
             // In WinUI the input/drag HWND can differ from the main app HWND. Resolve
@@ -148,17 +149,22 @@ private:
                 return false;
             }
             if (probe_caption(input, xs[i], ys[i], unavailable)) {
+                if (i == 0) {
+                    centerInput = input;
+                }
                 continue;
             }
-            // A measured native button can span the top resize strip. Windows
-            // returns HTTOP there even though the rest is draggable caption.
-            // Accept ONLY the two upper samples, on the target root itself,
-            // inside its SDK-sized resize strip. Center/bottom, child inputs,
-            // HTCLIENT, corners and failed queries keep the strict rejection.
+            // A measured button spans the native top resize strip. Modern frames
+            // can route both caption and resizing to a child input surface.
+            // Allow that SAME descendant only after its center said HTCAPTION;
+            // never reinterpret a child's HTCLIENT or an unrelated resize area.
             const bool topSample = i == 1 || i == 2;
+            const bool captionChild = input == centerInput && GetAncestor(input, GA_ROOT) == hwnd &&
+                                      identify(input).pid == target_.pid;
             const auto style = static_cast<DWORD_PTR>(GetWindowLongPtrW(hwnd, GWL_STYLE));
-            if (unavailable || !measuredNativeButton || !topSample || input != hwnd ||
-                diagnosis_.lastHit != HTTOP || !(style & WS_THICKFRAME) || IsZoomed(hwnd)) {
+            if (unavailable || !measuredNativeButton || !topSample ||
+                (input != hwnd && !captionChild) || diagnosis_.lastHit != HTTOP ||
+                !(style & WS_THICKFRAME) || IsZoomed(hwnd)) {
                 return false;
             }
             const UINT dpi = diagnosis_.monitorDpi;
@@ -208,6 +214,20 @@ private:
             return std::nullopt;
         }
         const int tolerance = dip(2, dpi);
+        // A maximized root extends above its visible frame. Some composed frames
+        // report the DWM caption group from that hidden origin, while individual
+        // accessibility buttons start at the visible top. Accommodate ONLY the
+        // observed frame inset, bounded by the SDK resize metrics. Do not shift
+        // the individual screen rectangles or loosen horizontal validation.
+        int maximizedInset = 0;
+        if (IsZoomed(target_.hwnd) && frame.top > window.top) {
+            const int inset = static_cast<int>(frame.top - window.top);
+            const int border = GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi) +
+                               GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+            if (inset <= border) {
+                maximizedInset = inset;
+            }
+        }
         for (const int index : {2, 3, 5}) {
             if (!visible(index)) {
                 continue;
@@ -215,11 +235,13 @@ private:
             const RECT candidate = info.rgrect[index];
             // Reject classic/stale/accessibility bounds inconsistent with actual
             // DWM bounds. Do not let custom-chrome metadata displace working UI.
-            if (dwm && (candidate.left < controls.left - tolerance ||
-                        candidate.right > controls.right + tolerance ||
-                        candidate.top < controls.top - tolerance ||
-                        candidate.bottom > controls.bottom + tolerance ||
-                        candidate.bottom - candidate.top < (controls.bottom - controls.top) / 2)) {
+            if (dwm &&
+                (candidate.left < controls.left - tolerance ||
+                 candidate.right > controls.right + tolerance ||
+                 candidate.top < controls.top - tolerance ||
+                 candidate.bottom > controls.bottom + maximizedInset + tolerance ||
+                 candidate.bottom - candidate.top > controls.bottom - controls.top + tolerance ||
+                 candidate.bottom - candidate.top < (controls.bottom - controls.top) / 2)) {
                 continue;
             }
             diagnosis_.referenceIndex = index;
