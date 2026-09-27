@@ -1,0 +1,243 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory=$true)][string]$ExecutablePath,
+    [string]$OutputDirectory = 'real-app-evidence',
+    [switch]$AllowDesktopCapture
+)
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+# Only capture a disposable hosted desktop by default. Never silently capture a user's session.
+if (-not $AllowDesktopCapture -and $env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
+    throw 'Use a disposable desktop; non-hosted runs require explicit -AllowDesktopCapture.'
+}
+$exe = (Resolve-Path -LiteralPath $ExecutablePath).Path
+$out = [IO.Path]::GetFullPath($OutputDirectory)
+$null = New-Item -ItemType Directory -Force $out
+if (@(Get-Process -Name MoveToMonitorButton -ErrorAction SilentlyContinue).Count) {
+    throw 'A pre-existing MoveToMonitorButton is running. Refusing to stop or interfere with it.'
+}
+$probe = Join-Path $PSScriptRoot '../tests/desktop/DesktopProbe.cs'
+Add-Type -Path $probe -ReferencedAssemblies System.Drawing.dll
+[DesktopProbe]::PhysicalCoordinates()
+$work = [DesktopProbe]::WorkArea()
+$oldCursor = New-Object DesktopProbe+Point
+$null = [DesktopProbe]::GetCursorPos([ref]$oldCursor)
+$os = Get-CimInstance Win32_OperatingSystem
+$packages = @(Get-AppxPackage | Where-Object { $_.Name -match 'WindowsNotepad|WindowsStore|WindowsCalculator' })
+$evidence = [ordered]@{
+    schemaVersion = 1
+    commit = $env:GITHUB_SHA
+    executableSha256 = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+    os = $os.Caption; build = $os.BuildNumber
+    hostArchitecture = $env:PROCESSOR_ARCHITECTURE
+    executableArchitecture = 'x64'
+    imageVersion = $env:ImageVersion
+    sessionId = [Diagnostics.Process]::GetCurrentProcess().SessionId
+    userInteractive = [Environment]::UserInteractive
+    workArea = $work
+    packages = @($packages | Select-Object Name,@{n='Version';e={$_.Version.ToString()}},PackageFullName)
+    scope = 'Actual EXE; real apps and explicitly labelled framework fixtures; one monitor override; no physical monitor movement.'
+    cases = New-Object System.Collections.Generic.List[object]
+    fatalError = $null
+}
+function Require([bool]$condition,[string]$message) { if (-not $condition) { throw $message } }
+function Save-Evidence {
+    $evidence | ConvertTo-Json -Depth 14 | Set-Content -LiteralPath (Join-Path $out 'results.json') -Encoding UTF8
+}
+function Stop-Utility($process) {
+    if ($null -eq $process) { return }
+    if (-not $process.HasExited) {
+        $hostWindow = @([DesktopProbe]::Windows() | Where-Object { $_.Pid -eq $process.Id -and $_.Class -eq 'MoveToMonitorButton.Host.v1' })
+        if ($hostWindow.Count) { $null = [DesktopProbe]::PostMessage([IntPtr]$hostWindow[0].Handle,0x10,[IntPtr]::Zero,[IntPtr]::Zero) }
+        if (-not $process.WaitForExit(5000)) { $process.Kill(); $process.WaitForExit(); throw 'Test-owned utility failed to exit normally.' }
+    }
+    $process.WaitForExit()
+    Require ($process.ExitCode -eq 0) "Utility exited with code $($process.ExitCode)"
+    $process.Dispose()
+}
+function Get-NewTarget($before,$spec,$launched) {
+    $deadline = [DateTime]::UtcNow.AddSeconds(25)
+    do {
+        $candidates = @([DesktopProbe]::Windows() | Where-Object { $_.Visible -and $_.Bounds.Width -gt 250 -and $_.Bounds.Height -gt 100 -and $before -notcontains $_.Handle })
+        foreach ($w in $candidates) {
+            if ($spec.Kind -eq 'Framework' -and $w.Pid -eq $launched.Id) { return $w }
+            if ($spec.Kind -eq 'Explorer' -and $w.Class -eq 'CabinetWClass') { return $w }
+            if ($spec.Kind -eq 'Notepad' -and $w.Process -match '^notepad$') { return $w }
+            if ($spec.Kind -eq 'Mmc' -and $w.Process -eq 'mmc') { return $w }
+            if ($spec.Kind -eq 'Package') {
+                if ($w.Package -like "$($spec.Package)_*") { return $w }
+                if ($w.Class -eq 'ApplicationFrameWindow') {
+                    $caption = [DesktopProbe]::Caption([IntPtr]$w.Handle)
+                    if (@($caption.Children | Where-Object { $_.Package -like "$($spec.Package)_*" }).Count) { return $w }
+                }
+            }
+        }
+        Start-Sleep -Milliseconds 250
+    } while ([DateTime]::UtcNow -lt $deadline)
+    throw 'The requested application did not create a new identifiable top-level window.'
+}
+function Test-WindowState($spec,$target,[string]$mode) {
+    $hwnd = [IntPtr]$target.Handle
+    $result = [ordered]@{ app=$spec.Name; kind=$spec.Kind; state=$mode; status='failed'; reason=$null; window=$target; caption=$null; overlay=$null; nativeSizeMatched=$null; pixelGlyph=$null; pixelHover=$null; stableSamples=0; hitPoints=0; screenshots=@() }
+    $app = $null
+    try {
+        if ($mode -eq 'maximized') { $null = [DesktopProbe]::ShowWindowAsync($hwnd,3) }
+        else {
+            $null = [DesktopProbe]::ShowWindowAsync($hwnd,9)
+            Start-Sleep -Milliseconds 350
+            $width = [Math]::Min($(if ($mode -eq 'restored-narrow') { 660 } else { 950 }),$work.Width-80)
+            $null = [DesktopProbe]::SetWindowPos($hwnd,[IntPtr]::Zero,$work.Left+35,$work.Top+40,$width,[Math]::Min(520,$work.Height-100),0x4014)
+        }
+        Start-Sleep -Milliseconds 650
+        $null = [DesktopProbe]::SetForegroundWindow($hwnd)
+        $null = [DesktopProbe]::SetCursorPos($work.Left+10,$work.Bottom-50)
+        Start-Sleep -Milliseconds 750
+        Require ([DesktopProbe]::GetForegroundWindow() -eq $hwnd) 'Test cannot obtain target foreground; not an overlay verdict.'
+        Require ([DesktopProbe]::IsZoomed($hwnd) -eq ($mode -eq 'maximized')) 'Target did not reach the requested window state.'
+        $caption = [DesktopProbe]::Caption($hwnd)
+        $result.caption = $caption
+        $prefix = "$($spec.Name)-$mode"
+        $baseline = Join-Path $out "$prefix-baseline.png"
+        $normal = Join-Path $out "$prefix-normal.png"
+        $hover = Join-Path $out "$prefix-hover.png"
+        $capture = [DesktopProbe]::CaptureCaption($hwnd,$baseline)
+        $result.screenshots += [IO.Path]::GetFileName($baseline)
+        $app = Start-Process -FilePath $exe -ArgumentList '--show-on-single-monitor' -PassThru
+        $deadline = [DateTime]::UtcNow.AddSeconds(12)
+        $overlay = $null
+        do {
+            Start-Sleep -Milliseconds 250
+            $app.Refresh()
+            Require (-not $app.HasExited) 'Utility exited while waiting for the overlay.'
+            $found = @([DesktopProbe]::Windows() | Where-Object { $_.Pid -eq $app.Id -and $_.Class -eq 'MoveToMonitorButton.Overlay.v1' -and $_.Visible })
+            if ($found.Count) { $overlay = $found[0]; break }
+        } while ([DateTime]::UtcNow -lt $deadline)
+        $null = [DesktopProbe]::CaptureCaption($hwnd,$normal)
+        $result.screenshots += [IO.Path]::GetFileName($normal)
+        Require ($null -ne $overlay) 'Overlay not visible on the real application.'
+        $bounds = [DesktopProbe]::Bounds([IntPtr]$overlay.Handle)
+        $result.overlay = $bounds
+        Require ($caption.Window.Contains($bounds)) 'Overlay outside target bounds.'
+        Require ($work.Contains($bounds)) 'Overlay outside monitor work area.'
+        if ($caption.DwmControlsOk) { Require (-not $bounds.Overlaps($caption.Controls)) 'Overlay overlaps the native caption controls.' }
+        if ($caption.TitleQueryOk) {
+            $validButtons = @(2,3,5 | Where-Object { $caption.Title.Buttons[$_].Width -gt 0 -and $caption.Title.Buttons[$_].Height -gt 0 -and (($caption.Title.States[$_] -band 0x18000) -eq 0) })
+            if ($validButtons.Count) {
+                $reference = $caption.Title.Buttons[$validButtons[0]]
+                $matched = $bounds.Width -eq $reference.Width -and $bounds.Top -eq $reference.Top -and $bounds.Bottom -eq $reference.Bottom
+                $result.nativeSizeMatched = $matched
+                if ($spec.RequireNativeMatch) { Require $matched 'Default-frame app did not match native caption-button dimensions.' }
+            }
+        }
+        $oh = [IntPtr]$overlay.Handle
+        $points = @(
+            (New-Object DesktopProbe+Point($bounds.Left+3,$bounds.Top+3)),
+            (New-Object DesktopProbe+Point($bounds.Right-4,$bounds.Top+3)),
+            (New-Object DesktopProbe+Point($bounds.Left+3,$bounds.Bottom-4)),
+            (New-Object DesktopProbe+Point($bounds.Right-4,$bounds.Bottom-4)),
+            (New-Object DesktopProbe+Point(($bounds.Left+[int]($bounds.Width/2)),($bounds.Top+[int]($bounds.Height/2))))
+        )
+        foreach ($point in $points) {
+            Require ([DesktopProbe]::WindowFromPoint($point) -eq $oh) 'Overlay has a click-through hole or is occluded.'
+            Require ([DesktopProbe]::Hit($oh,$point.X,$point.Y) -eq 1) 'Overlay does not return HTCLIENT.'
+            $result.hitPoints++
+        }
+        for ($i=0;$i -lt 8;$i++) {
+            Start-Sleep -Milliseconds 250
+            Require ([DesktopProbe]::IsWindowVisible($oh) -and [DesktopProbe]::Bounds($oh).Same($bounds)) 'Overlay disappears or shifts during steady state.'
+            Require ([DesktopProbe]::GetForegroundWindow() -eq $hwnd) 'Foreground changed during the observation.'
+            $result.stableSamples++
+        }
+        $null = [DesktopProbe]::CaptureCaption($hwnd,$normal)
+        $glyph = [DesktopProbe]::Compare($baseline,$normal,$bounds,$capture)
+        $result.pixelGlyph = $glyph
+        Require ($glyph.Changed -ge 6) 'No visible move glyph in the actual screen pixels.'
+        $null = [DesktopProbe]::SetCursorPos($points[4].X,$points[4].Y)
+        Start-Sleep -Milliseconds 450
+        $null = [DesktopProbe]::CaptureCaption($hwnd,$hover)
+        $result.screenshots += [IO.Path]::GetFileName($hover)
+        $hot = [DesktopProbe]::Compare($normal,$hover,$bounds,$capture)
+        $result.pixelHover = $hot
+        Require ($hot.Changed -ge 6) 'Hover did not visibly change the overlay.'
+        Require ([DesktopProbe]::Responsive($oh)) 'Overlay message loop is unresponsive.'
+        $result.status = 'passed'
+    } catch { $result.reason = $_.Exception.Message }
+    finally {
+        try { Stop-Utility $app } catch { $result.status='failed'; $result.reason="$($result.reason) Cleanup: $($_.Exception.Message)" }
+        $null = [DesktopProbe]::SetCursorPos($work.Left+10,$work.Bottom-50)
+        $evidence.cases.Add([pscustomobject]$result)
+        Save-Evidence
+        Write-Host "$($result.app) / $mode : $($result.status) $($result.reason)"
+    }
+}
+$specs = @(
+    @{Name='Notepad'; Kind='Notepad'; Package='Microsoft.WindowsNotepad'; RequireNativeMatch=(@($packages | Where-Object Name -eq 'Microsoft.WindowsNotepad').Count -eq 0)},
+    @{Name='Explorer'; Kind='Explorer'; Package=$null; RequireNativeMatch=$false},
+    @{Name='TaskScheduler'; Kind='Mmc'; Package=$null; RequireNativeMatch=$true},
+    @{Name='MicrosoftStore'; Kind='Package'; Package='Microsoft.WindowsStore'; RequireNativeMatch=$false},
+    @{Name='Calculator'; Kind='Package'; Package='Microsoft.WindowsCalculator'; RequireNativeMatch=$false},
+    @{Name='WPF-fixture'; Kind='Framework'; Framework='WPF'; Package=$null; RequireNativeMatch=$true},
+    @{Name='WinForms-fixture'; Kind='Framework'; Framework='WinForms'; Package=$null; RequireNativeMatch=$true}
+)
+try {
+    Require ([Environment]::UserInteractive) 'No interactive desktop.'
+    Save-Evidence
+    foreach ($spec in $specs) {
+        $launched = $null; $target = $null
+        if ($spec.Kind -eq 'Package' -and @($packages | Where-Object Name -eq $spec.Package).Count -eq 0) {
+            $evidence.cases.Add([pscustomobject]@{app=$spec.Name; kind=$spec.Kind; state='all'; status='unavailable'; reason='Package not installed for this runner user; not counted as passed.'})
+            Save-Evidence
+            continue
+        }
+        try {
+            $before = @([DesktopProbe]::Windows() | ForEach-Object Handle)
+            switch ($spec.Kind) {
+                'Notepad' {
+                    $sample = Join-Path $out 'caption-test-content.txt'
+                    'Synthetic test file; no user content.' | Set-Content -LiteralPath $sample -Encoding UTF8
+                    $launched = Start-Process notepad.exe -ArgumentList ('"'+$sample+'"') -PassThru
+                }
+                'Explorer' {
+                    $folder = Join-Path $out 'empty-explorer-fixture'
+                    $null = New-Item -ItemType Directory -Force $folder
+                    $launched = Start-Process explorer.exe -ArgumentList ('"'+$folder+'"') -PassThru
+                }
+                'Mmc' { $launched = Start-Process mmc.exe -ArgumentList taskschd.msc -PassThru }
+                'Package' {
+                    $package = $packages | Where-Object Name -eq $spec.Package | Select-Object -First 1
+                    $manifest = Get-AppxPackageManifest $package.PackageFullName
+                    $appId = @($manifest.Package.Applications.Application)[0].Id
+                    $launched = Start-Process explorer.exe -ArgumentList ('shell:AppsFolder\'+$package.PackageFamilyName+'!'+$appId) -PassThru
+                }
+                'Framework' {
+                    $fixture = (Resolve-Path (Join-Path $PSScriptRoot '../tests/desktop/FrameworkFixture.ps1')).Path
+                    $launched = Start-Process (Join-Path $PSHOME 'powershell.exe') -ArgumentList ('-NoProfile -STA -File "'+$fixture+'" -Framework '+$spec.Framework) -PassThru
+                }
+            }
+            $target = Get-NewTarget $before $spec $launched
+            foreach ($mode in @('normal','maximized','restored-narrow')) { Test-WindowState $spec $target $mode }
+        } catch {
+            $evidence.cases.Add([pscustomobject]@{app=$spec.Name; kind=$spec.Kind; state='launch'; status='failed'; reason=$_.Exception.Message})
+            Save-Evidence
+            Write-Host "$($spec.Name) launch failed: $($_.Exception.Message)"
+        } finally {
+            # Close only a newly identified test window; never kill Explorer or unrelated app processes.
+            if ($null -ne $target -and [DesktopProbe]::IsWindow([IntPtr]$target.Handle)) {
+                $null = [DesktopProbe]::PostMessage([IntPtr]$target.Handle,0x10,[IntPtr]::Zero,[IntPtr]::Zero)
+                Start-Sleep -Milliseconds 350
+            }
+            if ($null -ne $launched) { $launched.Dispose() }
+        }
+    }
+} catch { $evidence.fatalError = $_.Exception.Message; throw }
+finally {
+    $null = [DesktopProbe]::SetCursorPos($oldCursor.X,$oldCursor.Y)
+    Save-Evidence
+    $summary = @('# Real application caption results','',"OS: $($evidence.os), build $($evidence.build), host $($evidence.hostArchitecture); executable x64.",'', '| App | State | Result | Reason |','|---|---|---|---|')
+    foreach ($case in $evidence.cases) { $summary += "| $($case.app) | $($case.state) | $($case.status) | $($case.reason) |" }
+    $summary += @('', 'A geometry/pixel pass is not a claim of pixel-identical DWM styling or physical multi-monitor movement. Screenshots require review. Missing packages are unavailable, never passed.')
+    $summary | Set-Content -LiteralPath (Join-Path $out 'SUMMARY.md') -Encoding UTF8
+    if ($env:GITHUB_STEP_SUMMARY) { $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+}
+$failures = @($evidence.cases | Where-Object status -eq 'failed')
+Require ($failures.Count -eq 0) "$($failures.Count) real-app test cases failed. See results.json and screenshots."
