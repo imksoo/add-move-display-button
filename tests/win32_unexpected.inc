@@ -7,7 +7,6 @@ BOOL WINAPI SetProcessDpiAwarenessContext(HANDLE) { std::cerr << "Unexpected API
 int WINAPI GetSystemMetricsForDpi(int, UINT) { std::cerr << "Unexpected API: GetSystemMetricsForDpi\n"; std::abort(); }
 ATOM WINAPI RegisterClassExW(const WNDCLASSEXW*) { std::cerr << "Unexpected API: RegisterClassExW\n"; std::abort(); }
 HWND WINAPI CreateWindowExW(DWORD, LPCWSTR, LPCWSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE, LPVOID) { std::cerr << "Unexpected API: CreateWindowExW\n"; std::abort(); }
-BOOL WINAPI DestroyWindow(HWND) { std::cerr << "Unexpected API: DestroyWindow\n"; std::abort(); }
 LRESULT WINAPI DefWindowProcW(HWND, UINT, WPARAM, LPARAM) { std::cerr << "Unexpected API: DefWindowProcW\n"; std::abort(); }
 HWND WINAPI FindWindowW(LPCWSTR, LPCWSTR) { std::cerr << "Unexpected API: FindWindowW\n"; std::abort(); }
 BOOL WINAPI GetClientRect(HWND, RECT*) { std::cerr << "Unexpected API: GetClientRect\n"; std::abort(); }
@@ -16,7 +15,6 @@ BOOL WINAPI EnumDisplayMonitors(HDC, const RECT*, MONITORENUMPROC, LPARAM) { std
 BOOL WINAPI GetMonitorInfoW(HMONITOR, MONITORINFO*) { std::cerr << "Unexpected API: GetMonitorInfoW\n"; std::abort(); }
 BOOL WINAPI PostMessageW(HWND, UINT, WPARAM, LPARAM) { std::cerr << "Unexpected API: PostMessageW\n"; std::abort(); }
 HWINEVENTHOOK WINAPI SetWinEventHook(DWORD, DWORD, HMODULE, WINEVENTPROC, DWORD, DWORD, DWORD) { std::cerr << "Unexpected API: SetWinEventHook\n"; std::abort(); }
-BOOL WINAPI UnhookWinEvent(HWINEVENTHOOK) { std::cerr << "Unexpected API: UnhookWinEvent\n"; std::abort(); }
 UINT WINAPI RegisterWindowMessageW(LPCWSTR) { std::cerr << "Unexpected API: RegisterWindowMessageW\n"; std::abort(); }
 BOOL WINAPI GetMessageW(MSG*, HWND, UINT, UINT) { std::cerr << "Unexpected API: GetMessageW\n"; std::abort(); }
 BOOL WINAPI TranslateMessage(const MSG*) { std::cerr << "Unexpected API: TranslateMessage\n"; std::abort(); }
@@ -46,4 +44,11 @@ HGDIOBJ WINAPI GetStockObject(int) { std::cerr << "Unexpected API: GetStockObjec
 BOOL WINAPI Rectangle(HDC, int, int, int, int) { std::cerr << "Unexpected API: Rectangle\n"; std::abort(); }
 BOOL WINAPI MoveToEx(HDC, int, int, POINT*) { std::cerr << "Unexpected API: MoveToEx\n"; std::abort(); }
 BOOL WINAPI LineTo(HDC, int, int) { std::cerr << "Unexpected API: LineTo\n"; std::abort(); }
+}
+
+extern "C" {
+HLOCAL WINAPI LocalFree(HLOCAL) { std::abort(); }
+LPWSTR* WINAPI CommandLineToArgvW(LPCWSTR, int*) { std::abort(); }
+HBRUSH WINAPI GetSysColorBrush(int) { std::abort(); }
+LONG_PTR WINAPI SetWindowLongPtrW(HWND, int, LONG_PTR) { std::abort(); }
 }

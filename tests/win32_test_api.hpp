@@ -1,8 +1,6 @@
-// Test doubles only. Never included in the Windows application.
 #pragma once
-// Test-only declarations for Linux controller simulations.
-// Windows targets always include the official SDK through src/platform.hpp.
-// SDK structure sizes and offsets are checked by tests/abi_test.cpp in Windows CI.
+// TEST DOUBLES ONLY: native host wchar_t and fake handles, NOT a Windows ABI.
+// Production and Windows integration tests include the official SDK instead.
 #include <stdint.h>
 #include <stddef.h>
 #define WINAPI __stdcall
@@ -270,3 +268,29 @@ API HRESULT WINAPI DwmGetWindowAttribute(HWND, DWORD, void*, DWORD);
 #ifndef GW_OWNER
 #define GW_OWNER 4
 #endif
+
+using UINT_PTR = uintptr_t;
+using HLOCAL = HANDLE;
+struct CREATESTRUCTW {
+    LPVOID lpCreateParams; HINSTANCE hInstance; HMENU hMenu; HWND hwndParent;
+    int cy, cx, y, x; LONG style; LPCWSTR lpszName, lpszClass; DWORD dwExStyle;
+};
+extern "C" {
+API HLOCAL WINAPI LocalFree(HLOCAL);
+API LPWSTR* WINAPI CommandLineToArgvW(LPCWSTR, int*);
+API HRESULT WINAPI StringCchCopyW(LPWSTR, size_t, LPCWSTR);
+API HBRUSH WINAPI GetSysColorBrush(int);
+API BOOL WINAPI EqualRect(const RECT*, const RECT*);
+API BOOL WINAPI PtInRect(const RECT*, POINT);
+API BOOL WINAPI OffsetRect(RECT*, int, int);
+API LONG_PTR WINAPI SetWindowLongPtrW(HWND, int, LONG_PTR);
+}
+#define _countof(array) (sizeof(array) / sizeof((array)[0]))
+#define MAKEINTRESOURCEW(id) reinterpret_cast<LPWSTR>(static_cast<uintptr_t>(static_cast<WORD>(id)))
+#define MAKELPARAM(lo, hi) static_cast<LPARAM>(static_cast<DWORD>(static_cast<WORD>(lo)) | (static_cast<DWORD>(static_cast<WORD>(hi)) << 16))
+#define LOWORD(value) static_cast<WORD>(static_cast<uintptr_t>(value) & 0xffffU)
+#define HGDI_ERROR reinterpret_cast<HGDIOBJ>(static_cast<intptr_t>(-1))
+#define WM_NCCREATE 0x0081
+#define WM_NCDESTROY 0x0082
+#define GWLP_USERDATA (-21)
+#define SUCCEEDED(hr) (static_cast<HRESULT>(hr) >= 0)
