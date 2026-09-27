@@ -54,7 +54,7 @@ jobs:
         if: matrix.configuration == 'Release'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: MoveToMonitorButton-0.1.5-windows-x64-msvc
+          name: MoveToMonitorButton-0.1.6-windows-x64-msvc
           path: dist/
           if-no-files-found: error
           retention-days: 30
@@ -64,6 +64,7 @@ jobs:
         with:
           name: windows-test-evidence-${{ matrix.configuration }}
           path: |
+            build/caption-native-*.bmp
             build/test-results.xml
             build/startup-result.json
             build/${{ matrix.configuration }}/build-info.json
@@ -83,7 +84,7 @@ jobs:
         run: |
           python -m venv .format-env
           .format-env/bin/python -m pip install clang-format==18.1.8
-          .format-env/bin/clang-format --dry-run --Werror src/app.cpp src/app.hpp src/placement.cpp src/placement.hpp src/diagnostics.cpp src/main.cpp src/win32_helpers.hpp tests/app_test_access.hpp tests/sdk_helpers_test.cpp tests/window_logic_test.cpp
+          .format-env/bin/clang-format --dry-run --Werror src/app.cpp src/app.hpp src/placement.cpp src/placement.hpp src/diagnostics.cpp src/main.cpp src/win32_helpers.hpp src/caption_appearance.cpp src/caption_appearance.hpp tests/caption_style_test.cpp tests/appearance_stub.cpp tests/app_test_access.hpp tests/sdk_helpers_test.cpp tests/window_logic_test.cpp
       - name: Configure Clang simulations and sanitizers
         run: cmake -S . -B build -DCMAKE_CXX_COMPILER=clang++ -DMTMB_SANITIZE=ON -DCMAKE_BUILD_TYPE=Debug
       - run: cmake --build build --parallel
