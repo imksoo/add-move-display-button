@@ -126,7 +126,8 @@ private:
         return diagnosis_.lastHit == HTCAPTION;
     }
 
-    bool safe_caption_rect(HWND hwnd, mtmb::Rect r, bool& unavailable) {
+    bool safe_caption_rect(HWND hwnd, mtmb::Rect r, bool& unavailable,
+                           bool measuredNativeButton = false) {
         const int xs[5] = {(r.left + r.right) / 2, r.left + 2, r.right - 3, r.left + 2,
                            r.right - 3};
         const int ys[5] = {(r.top + r.bottom) / 2, r.top + 2, r.top + 2, r.bottom - 3,
@@ -146,7 +147,24 @@ private:
                 ++diagnosis_.unrelatedPoints;
                 return false;
             }
-            if (!probe_caption(input, xs[i], ys[i], unavailable)) {
+            if (probe_caption(input, xs[i], ys[i], unavailable)) {
+                continue;
+            }
+            // A measured native button can span the top resize strip. Windows
+            // returns HTTOP there even though the rest is draggable caption.
+            // Accept ONLY the two upper samples, on the target root itself,
+            // inside its SDK-sized resize strip. Center/bottom, child inputs,
+            // HTCLIENT, corners and failed queries keep the strict rejection.
+            const bool topSample = i == 1 || i == 2;
+            const auto style = static_cast<DWORD_PTR>(GetWindowLongPtrW(hwnd, GWL_STYLE));
+            if (unavailable || !measuredNativeButton || !topSample || input != hwnd ||
+                diagnosis_.lastHit != HTTOP || !(style & WS_THICKFRAME) || IsZoomed(hwnd)) {
+                return false;
+            }
+            const UINT dpi = diagnosis_.monitorDpi;
+            const int strip = GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi) +
+                              GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+            if (ys[i] < diagnosis_.window.top || ys[i] >= diagnosis_.window.top + strip) {
                 return false;
             }
         }
@@ -166,7 +184,7 @@ private:
                                  reinterpret_cast<LPARAM>(&info), SMTO_ABORTIFHUNG | SMTO_BLOCK, 20,
                                  &ignored)) {
             diagnosis_.titlebarError = GetLastError();
-            return std::nullopt; // Only measurement failed; keep the proven fallback.
+            return std::nullopt;
         }
         const auto visible = [&](int index) {
             constexpr DWORD hidden = STATE_SYSTEM_INVISIBLE | STATE_SYSTEM_OFFSCREEN;
@@ -320,7 +338,7 @@ private:
                     continue;
                 }
                 bool unavailable = false;
-                if (safe_caption_rect(id.hwnd, candidate, unavailable)) {
+                if (safe_caption_rect(id.hwnd, candidate, unavailable, true)) {
                     bounds_ = native(candidate);
                     diagnosis_.matchedSize = true;
                     diagnosis_.reason = PlacementReason::MatchedCaption;

@@ -308,3 +308,7 @@ extern "C" BOOL WINAPI UnionRect(RECT*, const RECT*, const RECT*);
 #define WS_EX_LAYERED 0x00080000UL
 #define WM_THEMECHANGED 0x031A
 #define WM_SYSCOLORCHANGE 0x0015
+
+#ifndef HTTOP
+#define HTTOP 12
+#endif
