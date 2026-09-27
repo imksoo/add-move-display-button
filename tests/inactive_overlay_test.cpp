@@ -122,6 +122,31 @@ void screenshot(HWND window, const wchar_t* path) {
     CHECK(file.good());
 }
 
+COLORREF screen_pixel(POINT point) {
+    HDC screen = GetDC(nullptr);
+    CHECK(screen);
+    const COLORREF pixel = GetPixel(screen, point.x, point.y);
+    ReleaseDC(nullptr, screen);
+    CHECK(pixel != CLR_INVALID);
+    return pixel;
+}
+
+struct InputCleanup {
+    POINT original{};
+
+    InputCleanup() {
+        GetCursorPos(&original);
+    }
+
+    ~InputCleanup() {
+        INPUT release{};
+        release.type = INPUT_MOUSE;
+        release.mi.dwFlags = MOUSEEVENTF_LEFTUP | MOUSEEVENTF_RIGHTUP;
+        SendInput(1, &release, sizeof(INPUT));
+        SetCursorPos(original.x, original.y);
+    }
+};
+
 struct Product {
     mtmb::win32::UniqueHandle process;
     DWORD pid = 0;
@@ -195,6 +220,7 @@ int wmain(int argc, wchar_t** argv) {
         ShowWindow(active.get(), SW_SHOW);
         SetForegroundWindow(active.get());
         pump(300);
+        InputCleanup inputs;
         Product product(argv[1]);
         SetForegroundWindow(active.get());
         HWND button = await_inactive(product.pid, inactive.get());
@@ -216,6 +242,8 @@ int wmain(int argc, wchar_t** argv) {
         // The FIRST left-button down reaches the inactive overlay, without an
         // activation click. Release outside to cancel; the one-monitor runner
         // cannot demonstrate actual inter-monitor movement.
+        const POINT blank{rect.left + 5, point.y};
+        const COLORREF hoverColor = screen_pixel(blank);
         INPUT leftClick{};
         leftClick.type = INPUT_MOUSE;
         leftClick.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
@@ -224,9 +252,15 @@ int wmain(int argc, wchar_t** argv) {
         GUITHREADINFO gui{};
         gui.cbSize = sizeof(gui);
         CHECK(GetGUIThreadInfo(GetWindowThreadProcessId(button, nullptr), &gui));
-        CHECK(gui.hwndCapture == button);
-        CHECK(GetForegroundWindow() == active.get());
+        const COLORREF pressedColor = screen_pixel(blank);
+        std::cout << "Inactive press: capture=" << gui.hwndCapture << " button=" << button
+                  << " hoverRGB=" << hoverColor << " pressedRGB=" << pressedColor << '\n';
         screenshot(inactive.get(), L"inactive-pressed.bmp");
+        CHECK(GetForegroundWindow() == active.get());
+        // SetCapture is restricted for non-foreground windows. The requirement is
+        // delivery of the FIRST press, not a foreground-only capture side effect.
+        // Verify the actual pressed paint instead of assuming hwndCapture is set.
+        CHECK(pressedColor != hoverColor);
         SetCursorPos(work.left + 5, work.bottom - 5);
         leftClick.mi.dwFlags = MOUSEEVENTF_LEFTUP;
         CHECK(SendInput(1, &leftClick, sizeof(INPUT)) == 1);
@@ -234,6 +268,7 @@ int wmain(int argc, wchar_t** argv) {
         CHECK(GetForegroundWindow() == active.get());
         SetCursorPos(point.x, point.y);
         pump(100);
+        CHECK(screen_pixel(blank) == hoverColor); // leaving/releasing cancelled the press
         // A real right click opens the destination menu on the FIRST click, while
         // the target is inactive. No activation click on B precedes this action.
         INPUT clicks[2]{};

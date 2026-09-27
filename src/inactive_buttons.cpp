@@ -181,7 +181,8 @@ void InactiveButtons::update(Button& button) {
     const bool hidden = !IsWindowVisible(hwnd);
     // A target can change its topmost state without being activated. Do not
     // leave OUR button in the old band after the target becomes ordinary again.
-    const bool targetTopmost = GetWindowLongPtrW(button.target.hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST;
+    const bool targetTopmost =
+        (GetWindowLongPtrW(button.target.hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0;
     if (!targetTopmost && (GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST)) {
         SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
@@ -235,7 +236,13 @@ LRESULT InactiveButtons::message(Button& button, HWND hwnd, UINT msg, WPARAM wp,
         }
         return 0;
     case WM_MOUSELEAVE:
+        // A non-foreground window cannot rely on full mouse capture. Cancel on
+        // leaving the button, even if USER32 routes the eventual release elsewhere.
         button.hover = false;
+        button.pressed = false;
+        if (GetCapture() == hwnd) {
+            ReleaseCapture();
+        }
         paint(button);
         return 0;
     case WM_LBUTTONDOWN:
