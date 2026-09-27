@@ -46,13 +46,13 @@ jobs:
         with:
           name: real-app-test-executable
           path: app-under-test
-      - name: Prepare disposable desktop and verify actual visible pixels
+      - name: Verify visible desktop pixels without changing Windows settings
         shell: powershell
-        run: ./tools/Prepare-HostedDesktop.ps1 -OutputDirectory real-app-evidence
+        run: ./tools/Test-DesktopReadiness.ps1 -OutputDirectory real-app-evidence
       - name: Test real application caption pixels, geometry, hover, and stability
         shell: powershell
         run: ./tools/Test-RealApps.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -OutputDirectory real-app-evidence
-      - name: Keep all results and screenshots including failures
+      - name: Keep all results and screenshots including environment blocks
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
