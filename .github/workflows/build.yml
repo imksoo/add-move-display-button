@@ -1,0 +1,84 @@
+name: Windows SDK build and startup tests
+on:
+  push:
+    branches: [main, 'build/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sdk-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    name: MSVC x64 ${{ matrix.configuration }}
+    runs-on: windows-2022
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Release, Debug]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Configure MSVC and official Windows SDK
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DBUILD_TESTING=ON
+      - name: Build with warnings as errors
+        run: cmake --build build --config ${{ matrix.configuration }} --parallel
+      - name: Geometry, official SDK ABI, and actual EXE loader test
+        run: ctest --test-dir build -C ${{ matrix.configuration }} --output-on-failure --verbose --output-junit test-results.xml
+      - name: Actual EXE normal startup, event loop, and clean exit
+        shell: pwsh
+        run: ./tools/Test-Startup.ps1 -ExecutablePath build/${{ matrix.configuration }}/MoveToMonitorButton.exe -OutputPath build/startup-result.json
+      - name: Package only tested Release executable
+        if: matrix.configuration == 'Release'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item build/Release/MoveToMonitorButton.exe,README.md,LICENSE dist/
+          Copy-Item build/Release/build-info.json,build/startup-result.json,build/test-results.xml dist/
+          Copy-Item tools/Check-Startup.cmd dist/
+          $hash = (Get-FileHash dist/MoveToMonitorButton.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  MoveToMonitorButton.exe" | Set-Content dist/SHA256SUMS.txt -Encoding ascii
+          $metadata = Get-Content dist/build-info.json -Raw | ConvertFrom-Json
+          $metadata | Add-Member -NotePropertyName commit -NotePropertyValue $env:GITHUB_SHA
+          $metadata | Add-Member -NotePropertyName runUrl -NotePropertyValue "https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          $metadata | Add-Member -NotePropertyName executableSha256 -NotePropertyValue $hash
+          $metadata | ConvertTo-Json | Set-Content dist/build-info.json -Encoding utf8
+          "### Tested Windows x64 executable`nSHA-256: ``$hash``" >> $env:GITHUB_STEP_SUMMARY
+          Get-Content dist/build-info.json
+          Get-Content dist/startup-result.json
+      - name: Upload tested executable
+        if: matrix.configuration == 'Release'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: MoveToMonitorButton-0.1.4-windows-x64-msvc
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload test evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-test-evidence-${{ matrix.configuration }}
+          path: |
+            build/test-results.xml
+            build/startup-result.json
+            build/${{ matrix.configuration }}/build-info.json
+            build/Testing/Temporary/LastTest.log
+            build/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: warn
+          retention-days: 30
+  host-tests:
+    name: Linux API simulations (not Windows runtime)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Configure Clang simulations and sanitizers
+        run: cmake -S . -B build -DCMAKE_CXX_COMPILER=clang++ -DMTMB_SANITIZE=ON -DCMAKE_BUILD_TYPE=Debug
+      - run: cmake --build build --parallel
+      - run: ctest --test-dir build --output-on-failure --verbose
