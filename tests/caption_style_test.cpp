@@ -226,6 +226,41 @@ int wmain(int argc, wchar_t** argv) {
         bool resolving = false;
         auto placement = find_button_placement(identify(fixture.get()),
                                                {monitors, nullptr, nullptr, resolving, false});
+        const auto printRect = [](const char* label, const RECT& r) {
+            std::cout << label << ": " << r.left << ',' << r.top << " - " << r.right << ','
+                      << r.bottom << '\n';
+        };
+        for (int i = 2; i <= 5; ++i) {
+            std::cout << "Titlebar element " << i << " state=" << title.rgstate[i] << ' ';
+            printRect("bounds", title.rgrect[i]);
+        }
+        const auto& diagnosis = placement.diagnosis;
+        printRect("Window", diagnosis.window);
+        printRect("Frame", diagnosis.frame);
+        printRect("DWM controls", diagnosis.controls);
+        printRect("Reference", diagnosis.referenceButton);
+        printRect("Chosen", placement.bounds.value_or(RECT{}));
+        std::cout << "Reason=" << static_cast<int>(diagnosis.reason)
+                  << " matched=" << diagnosis.matchedSize << " probes=" << diagnosis.probes
+                  << " lastHit=" << diagnosis.lastHit
+                  << " titlebarError=" << diagnosis.titlebarError << " hitError=" << diagnosis.error
+                  << " dpi=" << diagnosis.monitorDpi << '\n';
+        const RECT button = title.rgrect[2];
+        const int proposedLeft = diagnosis.controls.left - (button.right - button.left);
+        const POINT samples[] = {
+            {proposedLeft + 2, button.top + 2},
+            {proposedLeft + 2, button.bottom - 3},
+            {proposedLeft + (button.right - button.left) / 2, (button.top + button.bottom) / 2}};
+        for (const auto point : samples) {
+            const HWND input = WindowFromPoint(point);
+            DWORD_PTR hit = 0;
+            const auto ok =
+                SendMessageTimeoutW(input, WM_NCHITTEST, 0, MAKELPARAM(point.x, point.y),
+                                    SMTO_ABORTIFHUNG | SMTO_BLOCK, 1000, &hit);
+            std::cout << "Candidate point " << point.x << ',' << point.y << " input=" << input
+                      << " ok=" << ok << " hit=" << static_cast<LRESULT>(hit) << '\n';
+        }
+        screenshot_fixture(fixture.get(), L"caption-native-measurement.bmp");
         CHECK(placement.bounds.has_value());
         // Require measurement matching on a real default Win32 caption, not only mocks.
         CHECK(placement.diagnosis.matchedSize);
