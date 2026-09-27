@@ -65,6 +65,32 @@ HWND find_inactive(DWORD process, HWND target) {
     return found.result;
 }
 
+// Creation of a popup HWND is not completion of its show/animation. Enumerate
+// only this product's visible menus; an unrelated or initially hidden #32768
+// must not terminate the asynchronous wait.
+HWND find_visible_menu(DWORD process) {
+    struct Search {
+        DWORD process;
+        HWND result{};
+    } found{process};
+
+    EnumWindows(
+        [](HWND hwnd, LPARAM context) -> BOOL {
+            auto& search = *reinterpret_cast<Search*>(context);
+            DWORD pid = 0;
+            GetWindowThreadProcessId(hwnd, &pid);
+            wchar_t name[32]{};
+            if (pid == search.process && IsWindowVisible(hwnd) &&
+                GetClassNameW(hwnd, name, _countof(name)) && std::wstring_view(name) == L"#32768") {
+                search.result = hwnd;
+                return FALSE;
+            }
+            return TRUE;
+        },
+        reinterpret_cast<LPARAM>(&found));
+    return found.result;
+}
+
 HWND await_inactive(DWORD pid, HWND target) {
     for (int i = 0; i < 60; ++i) {
         pump(100);
@@ -282,7 +308,7 @@ int wmain(int argc, wchar_t** argv) {
         HWND menu = nullptr;
         for (int i = 0; i < 30 && !menu; ++i) {
             pump(100);
-            menu = FindWindowW(L"#32768", nullptr);
+            menu = find_visible_menu(product.pid);
         }
         if (!menu || !IsWindowVisible(menu)) {
             GUITHREADINFO details{};
@@ -302,6 +328,15 @@ int wmain(int argc, wchar_t** argv) {
             screenshot(inactive.get(), L"inactive-menu-failure.bmp");
         }
         CHECK(menu && IsWindowVisible(menu));
+        const RECT menuBounds = bounds(menu);
+        CHECK(menuBounds.right > menuBounds.left && menuBounds.bottom > menuBounds.top);
+        CHECK(menuBounds.left >= work.left && menuBounds.top >= work.top);
+        CHECK(menuBounds.right <= work.right && menuBounds.bottom <= work.bottom);
+        GUITHREADINFO menuThread{};
+        menuThread.cbSize = sizeof(menuThread);
+        CHECK(GetGUIThreadInfo(GetWindowThreadProcessId(product.host, nullptr), &menuThread));
+        CHECK(menuThread.hwndMenuOwner == product.host);
+        screenshot(menu, L"inactive-menu.bmp");
         CHECK(GetForegroundWindow() != inactive.get());
         INPUT keys[2]{};
         keys[0].type = keys[1].type = INPUT_KEYBOARD;
