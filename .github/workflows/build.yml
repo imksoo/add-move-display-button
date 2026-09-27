@@ -1,8 +1,6 @@
 name: Windows SDK build and startup tests
 on:
-  push:
-    branches: [main, 'build/**']
-  pull_request:
+  workflow_call:
   workflow_dispatch:
 permissions:
   contents: read
@@ -54,7 +52,7 @@ jobs:
         if: matrix.configuration == 'Release'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: MoveToMonitorButton-0.1.7-windows-x64-msvc
+          name: MoveToMonitorButton-0.1.8-windows-x64-msvc
           path: dist/
           if-no-files-found: error
           retention-days: 30
@@ -89,3 +87,5 @@ jobs:
         run: cmake -S . -B build -DCMAKE_CXX_COMPILER=clang++ -DMTMB_SANITIZE=ON -DCMAKE_BUILD_TYPE=Debug
       - run: cmake --build build --parallel
       - run: ctest --test-dir build --output-on-failure --verbose
+      - name: Test release evidence validation
+        run: python tests/package_release_test.py

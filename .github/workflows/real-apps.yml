@@ -15,6 +15,9 @@ concurrency:
   group: real-apps-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  sdk-checks:
+    name: SDK builds and sanitizer regressions
+    uses: ./.github/workflows/build.yml
   build:
     name: Build the actual x64 executable
     runs-on: windows-2022
@@ -108,7 +111,7 @@ jobs:
           retention-days: 14
   tested-release:
     name: Publish only the EXE verified on both Server desktops
-    needs: [build, desktop]
+    needs: [build, desktop, sdk-checks]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
@@ -119,26 +122,71 @@ jobs:
         with:
           pattern: real-app-evidence-windows-20*
           path: dist/real-app-evidence
-      - name: Verify result coverage and exact executable hashes
-        run: |
-          python - <<'PYTHON'
-          import hashlib, json, pathlib
-          root = pathlib.Path('dist')
-          digest = hashlib.sha256((root / 'MoveToMonitorButton.exe').read_bytes()).hexdigest()
-          assert json.loads((root/'build-info.json').read_text(encoding='utf-8-sig'))['executableSha256'] == digest
-          for os in ('windows-2022', 'windows-2025'):
-              folder = root/'real-app-evidence'/('real-app-evidence-'+os)
-              results = json.loads((folder/'results.json').read_text(encoding='utf-8-sig'))
-              assert results['executableSha256'] == digest, 'Evidence is for a different EXE'
-              for app in ('Notepad','Explorer','TaskScheduler','WPF-fixture','WinForms-fixture'):
-                  for mode in ('normal','maximized','restored-narrow'):
-                      cases = [c for c in results['cases'] if c['app']==app and c['state']==mode]
-                      assert len(cases)==1 and cases[0]['status']=='passed' and cases[0]['nativeSizeMatched'], (os,app,mode)
-          print('Exact EXE hash and all 30 required native-size cases verified:', digest)
-          PYTHON
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          path: source
+      - name: Verify result coverage and create release files without rebuilding
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: python source/tools/package_release.py dist release-assets --commit "$SOURCE_COMMIT"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: MoveToMonitorButton-0.1.7-real-app-tested
+          name: MoveToMonitorButton-0.1.8-real-app-tested
           path: dist/
           if-no-files-found: error
           retention-days: 30
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: github-release-assets
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 30
+  release:
+    name: Publish verified assets to GitHub Releases
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: tested-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: github-release-assets
+          path: release-assets
+      - name: Create a versioned release, verify uploaded files, then publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(python -c 'import re,pathlib; print(re.search(r"project\(MoveToMonitorButton VERSION ([0-9]+\.[0-9]+\.[0-9]+)",pathlib.Path("CMakeLists.txt").read_text())[1])')
+          tag="v$version"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name' > existing-tags.txt
+          if grep -Fxq "$tag" existing-tags.txt; then
+            echo "Release $tag already exists; its assets will NOT be overwritten." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Refuse an unrelated pre-existing tag. Do not retag an existing version.
+          gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/$tag" > tag-refs.json
+          python - "$tag" <<'PYTHON'
+          import json, os, sys
+          for ref in json.load(open('tag-refs.json')):
+              if ref['ref'] == 'refs/tags/' + sys.argv[1]:
+                  assert ref['object']['type'] == 'commit' and ref['object']['sha'] == os.environ['GITHUB_SHA'], 'Tag already points elsewhere'
+          PYTHON
+          (cd release-assets && sha256sum -c SHA256SUMS.txt)
+          gh release create "$tag" release-assets/* --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "MoveToMonitorButton $tag" \
+            --notes-file "docs/releases/$tag.md" --draft
+          mkdir release-roundtrip
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir release-roundtrip
+          (cd release-roundtrip && sha256sum -c SHA256SUMS.txt)
+          cmp release-assets/SHA256SUMS.txt release-roundtrip/SHA256SUMS.txt
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          echo "### Release published: $tag" >> "$GITHUB_STEP_SUMMARY"
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"

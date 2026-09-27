@@ -5,7 +5,7 @@ on:
 permissions:
   contents: read
 jobs:
-  source:
+  snapshot:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -13,11 +13,12 @@ jobs:
         with:
           persist-credentials: false
       - run: |
-          mkdir snapshot
-          git archive --format=zip --output=snapshot/source.zip HEAD
-          python -m pip download --only-binary=:all: --no-deps clang-format==18.1.8 --dest snapshot
+          mkdir evidence
+          git archive --format=zip --output=evidence/source.zip HEAD
+          python -m pip download --only-binary=:all: --no-deps clang-format==18.1.8 --dest evidence
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: caption-release-source
-          path: snapshot/
+          path: evidence/
+          if-no-files-found: error
           retention-days: 1

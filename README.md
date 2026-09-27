@@ -2,6 +2,16 @@
 
 Windowsの前面ウィンドウのタイトルバーに「別モニターへ移動」ボタンを重ねる、MITライセンスの小さなユーティリティです。
 
+## ダウンロード
+
+[最新リリース](https://github.com/imksoo/add-move-display-button/releases/latest)のAssetsから、`MoveToMonitorButton.exe`または`MoveToMonitorButton-v0.1.8-windows-x64.zip`を取得してください。ZIPには使い方とビルド情報を同梱しています。証跡ZIPとSHA256SUMS.txtも別アセットとして公開します。
+
+## 0.1.8：小型配置の中央優先とReleases配布
+
+小型ボタンを使う場合も、標準ボタン列の縦中央にそろう安全な候補を最初に探索します。中央を置けないときは従来の安全な候補へ戻し、タブや独自ボタンを上書きしません。アイコンの倍率、標準サイズの配置、移動手順は変更していません。
+
+GitHub Releasesはmainへのpush後、MSVC Release/Debugと回帰試験、Server 2022/2025の実アプリ試験が通った場合に版ごとに一度だけ公開します。試験したEXEを再ビルドせず使用し、アップロード後のダウンロード・ハッシュ照合も行います。既存のリリース資産は上書きしません。
+
 ## 使い方
 
 Windows 10/11 x64でZIPを展開し、`MoveToMonitorButton.exe`を通常権限で起動します。旧版は先にトレイの「終了」で閉じてください。既定では2画面以上の拡張表示で有効です。
@@ -16,7 +26,7 @@ Windows 10/11 x64でZIPを展開し、`MoveToMonitorButton.exe`を通常権限�
 
 独自フレームや空き領域のないアプリでは小型の配置へ戻るか非表示になります。トレイからの移動も利用できます。位置推定は明示的なウィンドウ単位の選択だけで、既定では無効です。
 
-## 0.1.7：タブ付きExplorerの寸法追従
+## 0.1.7から継承：タブ付きExplorerの寸法追従
 
 入力用子ウィンドウの上端リサイズ領域と、最大化時の不可視枠による座標差を限定的に扱い、正しい同寸法候補を棄却しないようにしました。アプリ名やクラス名の例外登録は追加していません。詳細は[修正根拠](docs/EXPLORER-SIZING-FIX.md)を参照してください。
 
@@ -33,7 +43,7 @@ ctest --test-dir build -C Release --output-on-failure --verbose
 
 起動試験は、同じツールを常駐させていない検証専用セッションで実行してください。ActionsはRelease／Debugビルド、実SDK・描画・起動・応答・終了を検査します。
 
-`Real application caption compatibility`は2022／2025の実アプリを各3状態で検査します。Explorerも幅・上端・下端の一致を必須とし、小型表示を同寸法の成功にはしません。両環境で成功し、EXEハッシュと30必須ケースを再確認した場合のみ`MoveToMonitorButton-0.1.7-real-app-tested`を公開します。試験したものと同じEXE、起動記録、環境別の結果と画像を含みます。
+`Real application caption compatibility`は2022／2025の実アプリを各3状態で検査します。Explorerも幅・上端・下端の一致を必須とし、小型表示を同寸法の成功にはしません。両環境で成功し、EXEハッシュと30同寸法ケース＋Chromeの6表示ケースを再確認した場合のみ`MoveToMonitorButton-0.1.8-real-app-tested`を公開します。試験したものと同じEXE、起動記録、環境別の結果と画像を含みます。
 
 Windows 11 Armは画面前提が未成立のため、手動実行の`include_windows11=true`で診断します。画素確認や失敗判定を無効にしたものではありません。Serverでの成功はWindows 11の現行NotepadやStoreアプリ、物理モニター間移動、混在DPIの保証ではありません。Store／電卓の未登録はunavailableとして記録します。
 
