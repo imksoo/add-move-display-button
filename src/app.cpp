@@ -362,34 +362,11 @@ void Application::show_menu(POINT point, Identity target) {
 }
 
 void Application::paint_button(HWND hwnd) {
+    // Begin/EndPaint still validate the update region; the actual surface is a
+    // premultiplied layered bitmap, not a COLOR_BTNFACE rectangle over DWM.
     win32::PaintSession paint(hwnd);
-    const HDC dc = paint.dc();
-    if (!dc) {
-        return;
-    }
-    RECT r{};
-    GetClientRect(hwnd, &r);
-    const bool selected = state_.hover || state_.pressed;
-    const COLORREF foreground = GetSysColor(selected ? COLOR_HIGHLIGHTTEXT : COLOR_BTNTEXT);
-    FillRect(dc, &r, GetSysColorBrush(selected ? COLOR_HIGHLIGHT : COLOR_BTNFACE));
-    const UINT dpi = GetDpiForWindow(hwnd);
-    const int cx = static_cast<int>((r.left + r.right) / 2),
-              cy = static_cast<int>((r.top + r.bottom) / 2);
-    const int u = mtmb::clamp(dip(1, dpi), 1, 10);
-    win32::UniquePen pen{CreatePen(PS_SOLID, u, foreground)};
-    if (pen) {
-        const win32::GdiSelection selectPen(dc, pen.get());
-        const win32::GdiSelection selectBrush(dc, GetStockObject(NULL_BRUSH));
-        Rectangle(dc, cx - 8 * u, cy - 6 * u, cx + 3 * u, cy + 3 * u);
-        MoveToEx(dc, cx - 3 * u, cy + 3 * u, nullptr);
-        LineTo(dc, cx - 3 * u, cy + 6 * u);
-        MoveToEx(dc, cx - 6 * u, cy + 6 * u, nullptr);
-        LineTo(dc, cx, cy + 6 * u);
-        MoveToEx(dc, cx, cy - 1 * u, nullptr);
-        LineTo(dc, cx + 9 * u, cy - 1 * u);
-        MoveToEx(dc, cx + 5 * u, cy - 5 * u, nullptr);
-        LineTo(dc, cx + 9 * u, cy - 1 * u);
-        LineTo(dc, cx + 5 * u, cy + 3 * u);
+    if (!render_caption_button(hwnd, state_.palette, state_.hover, state_.pressed)) {
+        hide_button();
     }
 }
 
@@ -514,7 +491,10 @@ LRESULT Application::on_button(HWND hwnd, UINT message, WPARAM wParam, LPARAM lP
         show_menu(p, target);
         return 0;
     }
+    case WM_THEMECHANGED:
+    case WM_SYSCOLORCHANGE:
     case WM_DPICHANGED:
+        state_.paletteValid = false;
         state_.topologyDirty = true;
         request_refresh();
         return 0;
@@ -551,8 +531,11 @@ LRESULT Application::on_host(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
             advance_move();
         }
         return 0;
+    case WM_THEMECHANGED:
+    case WM_SYSCOLORCHANGE:
     case WM_DISPLAYCHANGE:
     case WM_SETTINGCHANGE:
+        state_.paletteValid = false;
         state_.topologyDirty = true;
         request_refresh();
         return 0;
@@ -674,6 +657,7 @@ void Application::refresh_button() {
     if (!same_window(candidate, state_.target)) {
         hide_button();
         state_.target = candidate;
+        state_.paletteValid = false;
     }
     if (state_.pressed) {
         return;
@@ -684,6 +668,23 @@ void Application::refresh_button() {
         return;
     }
     const RECT& bounds = *placement.bounds;
+    RECT reference = placement.diagnosis.referenceButton;
+    if (!valid(rect(reference))) {
+        // Only a color reference, NOT an assertion that DWM split its buttons
+        // evenly. Keep away from the glyph and outside our overlay.
+        reference = placement.diagnosis.controls;
+        reference.right =
+            std::min(reference.right, reference.left + dip(40, placement.diagnosis.monitorDpi));
+    }
+    const auto palette = query_caption_palette(state_.button.get(), state_.target, reference,
+                                               placement.diagnosis.monitorDpi,
+                                               state_.paletteValid ? &state_.palette : nullptr);
+    const bool paletteChanged = !state_.paletteValid ||
+                                palette.background != state_.palette.background ||
+                                palette.foreground != state_.palette.foreground ||
+                                palette.highContrast != state_.palette.highContrast;
+    state_.palette = palette;
+    state_.paletteValid = true;
     RECT previous{};
     GetWindowRect(state_.button.get(), &previous);
     if (!IsWindowVisible(state_.button.get()) || !EqualRect(&previous, &bounds)) {
@@ -691,7 +692,11 @@ void Application::refresh_button() {
                           bounds.right - bounds.left, bounds.bottom - bounds.top,
                           SWP_NOACTIVATE | SWP_SHOWWINDOW)) {
             hide_button();
+            return;
         }
+        InvalidateRect(state_.button.get(), nullptr, FALSE);
+    } else if (paletteChanged) {
+        InvalidateRect(state_.button.get(), nullptr, FALSE);
     }
 }
 
@@ -814,9 +819,9 @@ int Application::run(const win32::Options& options) {
     }
     state_.host.reset(CreateWindowExW(WS_EX_TOOLWINDOW, kHostClass, kAppName, WS_POPUP, -32000,
                                       -32000, 0, 0, nullptr, nullptr, state_.instance, this));
-    state_.button.reset(CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST,
-                                        kButtonClass, L"別のモニターに移動", WS_POPUP, 0, 0, 32, 28,
-                                        nullptr, nullptr, state_.instance, this));
+    state_.button.reset(CreateWindowExW(
+        WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_LAYERED, kButtonClass,
+        L"別のモニターに移動", WS_POPUP, 0, 0, 32, 28, nullptr, nullptr, state_.instance, this));
     if (!state_.host || !state_.button) {
         return 1;
     }

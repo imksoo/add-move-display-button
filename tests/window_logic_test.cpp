@@ -31,6 +31,9 @@ HWND pointWindow = target;
 bool ownedCaption, childClient, foreignSameProcess, blockRight, geometry192, returnOverlay;
 int pointQueries;
 bool throwOnPoint = false;
+TITLEBARINFOEX titlebar{};
+DWORD titlebarError = 0;
+int titlebarQueries = 0;
 HMONITOR left = reinterpret_cast<HMONITOR>(0x1000), right = reinterpret_cast<HMONITOR>(0x2000);
 RECT normal{100, 100, 900, 700}, outer = normal, overlay{};
 HWND foreground = target, captured;
@@ -57,6 +60,9 @@ void reset() {
     ownedCaption = childClient = foreignSameProcess = blockRight = geometry192 = returnOverlay =
         false;
     pointQueries = 0;
+    titlebar = {};
+    titlebarError = 0;
+    titlebarQueries = 0;
     throwOnPoint = false;
     state().topologyDirty = false;
     state().trayAdded = true;
@@ -202,6 +208,17 @@ HRESULT WINAPI StringCchCopyW(LPWSTR out, size_t capacity, LPCWSTR input) {
     return copied == length ? 0 : static_cast<HRESULT>(0x8007007AU);
 }
 
+BOOL WINAPI UnionRect(RECT* out, const RECT* a, const RECT* b) {
+    const RECT x = *a, y = *b;
+    if (x.right <= x.left || x.bottom <= x.top) {
+        *out = y;
+        return TRUE;
+    }
+    *out = {std::min(x.left, y.left), std::min(x.top, y.top), std::max(x.right, y.right),
+            std::max(x.bottom, y.bottom)};
+    return TRUE;
+}
+
 BOOL WINAPI EqualRect(const RECT* a, const RECT* b) {
     return a->left == b->left && a->top == b->top && a->right == b->right && a->bottom == b->bottom;
 }
@@ -345,6 +362,20 @@ HRESULT WINAPI DwmGetWindowAttribute(HWND, DWORD attribute, void* output, DWORD)
 
 LRESULT WINAPI SendMessageTimeoutW(HWND h, UINT message, WPARAM, LPARAM coords, UINT flags,
                                    UINT timeout, DWORD_PTR* result) {
+    if (message == WM_GETTITLEBARINFOEX) {
+        ++fake::titlebarQueries;
+        if (fake::titlebarError) {
+            fake::lastError = fake::titlebarError;
+            return 0;
+        }
+        auto* info = reinterpret_cast<TITLEBARINFOEX*>(coords);
+        if (info->cbSize != sizeof(TITLEBARINFOEX)) {
+            std::abort();
+        }
+        *info = fake::titlebar;
+        *result = 0; // Documented message succeeds with a zero result.
+        return 1;
+    }
     if (!(flags & SMTO_ABORTIFHUNG) || timeout > 50) {
         std::abort();
     }
@@ -896,6 +927,64 @@ int main() {
         CHECK(second.exclusions.empty());
         CHECK(!second.move.active());
     }
+
+    // Individual button measurement: retain exact size, height and spacing.
+    fake::reset();
+    fake::titlebar.rgrect[2] = {762, 106, 806, 136};
+    fake::titlebar.rgrect[3] = {806, 106, 850, 136};
+    fake::titlebar.rgrect[5] = {850, 106, 894, 136};
+    fake::refresh();
+    CHECK(fake::buttonVisible);
+    CHECK(fake::diagnosis().matchedSize);
+    CHECK(fake::overlay.left == 718 && fake::overlay.right == 762);
+    CHECK(fake::overlay.top == 106 && fake::overlay.bottom == 136);
+    CHECK(fake::diagnosis().measuredGap == 0);
+    CHECK(fake::titlebarQueries > 0);
+    fake::titlebar.rgstate[2] = STATE_SYSTEM_UNAVAILABLE;
+    fake::refresh();
+    CHECK(fake::diagnosis().referenceIndex == 2); // disabled still occupies space
+    fake::titlebar.rgstate[2] = STATE_SYSTEM_INVISIBLE;
+    fake::refresh();
+    CHECK(fake::diagnosis().referenceIndex == 3);
+    fake::titlebar.rgstate[3] = STATE_SYSTEM_OFFSCREEN;
+    fake::refresh();
+    CHECK(fake::diagnosis().referenceIndex == 5);
+    // Untrusted/missing metadata must leave the proven placement path available.
+    fake::reset();
+    fake::titlebar.rgrect[2] = {0, 0, 999999, 999999};
+    fake::refresh();
+    CHECK(fake::buttonVisible && !fake::diagnosis().matchedSize);
+    fake::reset();
+    fake::titlebarError = ERROR_TIMEOUT;
+    fake::refresh();
+    CHECK(fake::buttonVisible && fake::diagnosis().titlebarError == ERROR_TIMEOUT);
+    fake::reset();
+    fake::titlebarError = ERROR_ACCESS_DENIED;
+    fake::failMessage = true;
+    fake::messageError = ERROR_ACCESS_DENIED;
+    fake::refresh();
+    CHECK(!fake::buttonVisible); // neither metadata nor estimate overrides UIPI
+    // Real measured pixels at 200% must not be scaled a second time.
+    fake::reset();
+    fake::geometry192 = true;
+    fake::outer = {156, 135, 1756, 1223};
+    fake::state().monitors.items[0].dpi = 192;
+    fake::state().monitors.items[0].info.rcMonitor = {0, 0, 2560, 1440};
+    fake::state().monitors.items[0].info.rcWork = {0, 0, 2560, 1440};
+    fake::titlebar.rgrect[2] = {1452, 135, 1548, 192};
+    fake::titlebar.rgrect[3] = {1550, 135, 1646, 192};
+    fake::titlebar.rgrect[5] = {1648, 135, 1744, 192};
+    fake::hitClient = true;
+    fake::pointWindow = fake::child;
+    fake::refresh();
+    CHECK(fake::buttonVisible && fake::diagnosis().matchedSize);
+    CHECK(fake::overlay.left == 1354 && fake::overlay.right == 1450);
+    CHECK(fake::overlay.top == 135 && fake::overlay.bottom == 192);
+    CHECK(fake::diagnosis().measuredGap == 2);
+    // A tab in the matching-size position is never accepted by parent fallback.
+    fake::childClient = true;
+    fake::refresh();
+    CHECK(!fake::buttonVisible);
 
     fake::application.reset();
     std::cout << "PASS: " << checks

@@ -1,4 +1,5 @@
 #pragma once
+#include "caption_appearance.hpp"
 #include "placement.hpp"
 #include "win32_helpers.hpp"
 #include <array>
@@ -60,6 +61,8 @@ private:
         bool refreshPending = false, refreshing = false;
         bool topologyDirty = true, showOnSingleMonitor = false;
         bool resolvingInputWindow = false;
+        CaptionPalette palette;
+        bool paletteValid = false;
         bool failed = false;
     } state_;
 

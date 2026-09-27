@@ -7,6 +7,8 @@ namespace mtmb {
 namespace {
 LPCWSTR reason_text(PlacementReason reason) {
     switch (reason) {
+    case PlacementReason::MatchedCaption:
+        return L"表示可能: 標準ボタンの実測寸法・縦位置に一致（入力先5点確認）";
     case PlacementReason::NotChecked:
         return L"未検査";
     case PlacementReason::CoordinateOutOfRange:
@@ -114,6 +116,10 @@ std::wstring format_diagnostics(Identity target, const PlacementResult& placemen
     text << L"\nCaption controls: " << diagnosis.controls
          << (diagnosis.dwm ? L" (DWM)" : L" (推定)");
     text << L"\nCandidate: " << placement.bounds.value_or(RECT{});
+    text << L"\n基準ボタン: " << diagnosis.referenceIndex
+         << L" (2=最小化、3=最大化、5=閉じる) / 実測: " << diagnosis.referenceButton;
+    text << L"\n実測サイズ採用: " << diagnosis.matchedSize << L" / 間隔px: "
+         << diagnosis.measuredGap << L" / 寸法照会エラー: " << diagnosis.titlebarError;
     text << L"\n個別位置推定: " << estimateEnabled << L" / 配置計算成功: "
          << placement.bounds.has_value();
     text << L"\n一時停止: " << paused << L" / モニター数: " << monitorCount;
