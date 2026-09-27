@@ -321,10 +321,7 @@ int wmain(int argc, wchar_t** argv) {
                       << " target=" << inactive.get() << " button=" << button
                       << " cursor-window=" << WindowFromPoint(cursor) << " flags=" << details.flags
                       << " menu-owner=" << details.hwndMenuOwner
-                      << " capture=" << details.hwndCapture
-                      << " last-input=" << GetPropW(button, L"MoveToMonitorButton.InputProbe")
-                      << " menu-stage=" << GetPropW(button, L"MoveToMonitorButton.MenuProbe")
-                      << '\n';
+                      << " capture=" << details.hwndCapture << '\n';
             screenshot(inactive.get(), L"inactive-menu-failure.bmp");
         }
         CHECK(menu && IsWindowVisible(menu));
@@ -343,7 +340,10 @@ int wmain(int argc, wchar_t** argv) {
         keys[0].ki.wVk = keys[1].ki.wVk = VK_ESCAPE;
         keys[1].ki.dwFlags = KEYEVENTF_KEYUP;
         CHECK(SendInput(2, keys, sizeof(INPUT)) == 2);
-        pump(300);
+        for (int i = 0; i < 30 && find_visible_menu(product.pid); ++i) {
+            pump(100);
+        }
+        CHECK(!find_visible_menu(product.pid));
         SetCursorPos(previousCursor.x, previousCursor.y);
         SetForegroundWindow(active.get());
         button = await_inactive(product.pid, inactive.get());
