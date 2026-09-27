@@ -1,0 +1,25 @@
+name: Development source snapshot
+on:
+  push:
+    branches: [build/native-caption]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Export source and pinned development formatter
+        run: |
+          mkdir snapshot
+          git archive --format=zip HEAD -o snapshot/source.zip
+          python -m pip download --only-binary=:all: --no-deps clang-format==18.1.8 --dest snapshot
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: native-caption-development-source
+          path: snapshot/
+          retention-days: 1
+          if-no-files-found: error
