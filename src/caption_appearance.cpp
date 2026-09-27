@@ -54,7 +54,8 @@ bool belongs_to(Identity target, HWND window) {
 }
 
 std::optional<COLORREF> sample_background(Identity target, RECT reference) {
-    if (!valid(rect(reference)) || GetForegroundWindow() != target.hwnd || !alive(target)) {
+    if (!valid(rect(reference)) || !alive(target) || !IsWindowVisible(target.hwnd) ||
+        IsIconic(target.hwnd)) {
         return std::nullopt;
     }
     POINT cursor{};
@@ -75,8 +76,7 @@ std::optional<COLORREF> sample_background(Identity target, RECT reference) {
                             {reference.right - width / 6 - 1, reference.top + height * 2 / 3}};
     std::array<COLORREF, 5> colors{};
     for (size_t i = 0; i < colors.size(); ++i) {
-        if (GetForegroundWindow() != target.hwnd ||
-            !belongs_to(target, WindowFromPoint(points[i]))) {
+        if (!belongs_to(target, WindowFromPoint(points[i]))) {
             return std::nullopt;
         }
         colors[i] = GetPixel(screen.get(), points[i].x, points[i].y);

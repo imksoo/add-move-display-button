@@ -20,6 +20,7 @@ $probe = Join-Path $PSScriptRoot '../tests/desktop/DesktopProbe.cs'
 Add-Type -Path $probe -ReferencedAssemblies System.Drawing.dll
 [DesktopProbe]::PhysicalCoordinates()
 $work = [DesktopProbe]::WorkArea()
+$chromeProfile = Join-Path ([IO.Path]::GetTempPath()) ('mtmb-chrome-'+[guid]::NewGuid().ToString('N'))
 $oldCursor = New-Object DesktopProbe+Point
 $null = [DesktopProbe]::GetCursorPos([ref]$oldCursor)
 $os = Get-CimInstance Win32_OperatingSystem
@@ -34,6 +35,7 @@ $evidence = [ordered]@{
     imageVersion = $env:ImageVersion
     sessionId = [Diagnostics.Process]::GetCurrentProcess().SessionId
     userInteractive = [Environment]::UserInteractive
+    chromeVersion = $null
     workArea = $work
     packages = @($packages | Select-Object Name,@{n='Version';e={$_.Version.ToString()}},PackageFullName)
     scope = 'Actual EXE; real apps and explicitly labelled framework fixtures; one monitor override; no physical monitor movement.'
@@ -68,6 +70,7 @@ function Get-NewTarget($before,$spec,$launched) {
             }
             elseif ($spec.Kind -eq 'Explorer') { $match = $w.Class -eq 'CabinetWClass' }
             elseif ($spec.Kind -eq 'Notepad') { $match = $w.Process -match '^notepad$' }
+            elseif ($spec.Kind -eq 'Chrome') { $match = $w.Process -eq 'chrome' -and $w.Class -like 'Chrome_WidgetWin*' }
             elseif ($spec.Kind -eq 'Mmc') { $match = $w.Process -eq 'mmc' }
             elseif ($spec.Kind -eq 'Package') {
                 $match = $w.Package -like "$($spec.Package)_*"
@@ -191,10 +194,17 @@ function Test-WindowState($spec,$target,[string]$mode) {
         Write-Host "$($result.app) / $mode : $($result.status) $($result.reason)"
     }
 }
+$chromeCandidates = @(
+    (Join-Path $env:ProgramFiles 'Google/Chrome/Application/chrome.exe'),
+    (Join-Path ${env:ProgramFiles(x86)} 'Google/Chrome/Application/chrome.exe')
+)
+$chromePath = $chromeCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+if ($chromePath) { $evidence.chromeVersion = (Get-Item -LiteralPath $chromePath).VersionInfo.FileVersion }
 $hasModernNotepad = @($packages | Where-Object Name -eq 'Microsoft.WindowsNotepad').Count -gt 0
 $specs = @(
     @{Name='Notepad'; Kind=$(if ($hasModernNotepad) {'Package'} else {'Notepad'}); Package='Microsoft.WindowsNotepad'; RequireNativeMatch=(-not $hasModernNotepad)},
     @{Name='Explorer'; Kind='Explorer'; Package=$null; RequireNativeMatch=$true},
+    @{Name='Chrome'; Kind='Chrome'; Package=$null; RequireNativeMatch=$false},
     @{Name='TaskScheduler'; Kind='Mmc'; Package=$null; RequireNativeMatch=$true},
     @{Name='MicrosoftStore'; Kind='Package'; Package='Microsoft.WindowsStore'; RequireNativeMatch=$false},
     @{Name='Calculator'; Kind='Package'; Package='Microsoft.WindowsCalculator'; RequireNativeMatch=$false},
@@ -214,6 +224,14 @@ try {
         try {
             $before = @([DesktopProbe]::Windows() | ForEach-Object Handle)
             switch ($spec.Kind) {
+                'Chrome' {
+                    Require ([bool]$chromePath) 'Google Chrome is required for this hosted desktop suite.'
+                    $profile = $chromeProfile
+                    $page = Join-Path $out 'chrome-test.html'
+                    '<!doctype html><meta charset="utf-8"><title>MTMB isolated Chrome test</title><p>Synthetic local test page. No account or user data.</p>' | Set-Content -LiteralPath $page -Encoding UTF8
+                    $uri = ([Uri]$page).AbsoluteUri
+                    $launched = Start-Process $chromePath -ArgumentList ('--user-data-dir="'+$profile+'" --no-first-run --no-default-browser-check --disable-background-networking --new-window "'+$uri+'"') -PassThru
+                }
                 'Notepad' {
                     $sample = Join-Path $out 'caption-test-content.txt'
                     'Synthetic test file; no user content.' | Set-Content -LiteralPath $sample -Encoding UTF8
@@ -254,6 +272,8 @@ try {
 } catch { $evidence.fatalError = $_.Exception.Message; throw }
 finally {
     $null = [DesktopProbe]::SetCursorPos($oldCursor.X,$oldCursor.Y)
+    $profile = $chromeProfile
+    if (Test-Path -LiteralPath $profile) { Remove-Item -LiteralPath $profile -Recurse -Force -ErrorAction SilentlyContinue }
     Save-Evidence
     $summary = @('# Real application caption results','',"OS: $($evidence.os), build $($evidence.build), host $($evidence.hostArchitecture); executable x64.",'', '| App | State | Result | Reason |','|---|---|---|---|')
     foreach ($case in $evidence.cases) { $summary += "| $($case.app) | $($case.state) | $($case.status) | $($case.reason) |" }

@@ -13,7 +13,7 @@ HMONITOR monitor = reinterpret_cast<HMONITOR>(0x400);
 HWND input = child;
 bool splitInput = false, crossProcessChild = false;
 HWND otherChild = reinterpret_cast<HWND>(0x102);
-RECT window{}, frame{}, controls{};
+RECT window{}, frame{}, controls{}, captionSlot{};
 TITLEBARINFOEX title{};
 UINT dpi = 96;
 bool maximized = false, resizable = true, resolving = false;
@@ -40,6 +40,7 @@ void setup(bool zoomed, UINT scale = 1) {
     input = child;
     splitInput = crossProcessChild = false;
     resolving = false;
+    captionSlot = {};
     upperHit = HTTOP;
     bodyHit = HTCAPTION;
     lastError = sendError = 0;
@@ -196,9 +197,14 @@ LRESULT WINAPI SendMessageTimeoutW(HWND, UINT message, WPARAM, LPARAM lp, UINT, 
         *reinterpret_cast<TITLEBARINFOEX*>(lp) = title;
         *result = 0;
     } else if (message == WM_NCHITTEST) {
+        const auto x = static_cast<int16_t>(static_cast<uintptr_t>(lp) & 0xffff);
         const auto y = static_cast<int16_t>((static_cast<uintptr_t>(lp) >> 16) & 0xffff);
         *result = static_cast<DWORD_PTR>(
             !maximized && y < window.top + static_cast<int>(8 * dpi / 96) ? upperHit : bodyHit);
+        if (valid(rect(captionSlot)) && (x < captionSlot.left || x >= captionSlot.right ||
+                                         y < captionSlot.top || y >= captionSlot.bottom)) {
+            *result = HTCLIENT;
+        }
     } else {
         std::abort();
     }
@@ -268,5 +274,27 @@ int main() {
         sendError = error;
         CHECK(!search().bounds);
     }
+    // A narrow draggable slot can accept only a compact button. Prefer the
+    // caption's vertical center, retaining the old safe rows if it is blocked.
+    for (const UINT scale : {1U, 2U}) {
+        setup(false, scale);
+        title = {}; // a custom caption provides DWM bounds, not individual buttons
+        upperHit = HTCAPTION;
+        const int width = dip(24, dpi), height = dip(16, dpi);
+        captionSlot = {controls.left - dip(3, dpi) - width, controls.top,
+                       controls.left - dip(3, dpi), controls.bottom};
+        const auto p = search();
+        CHECK(p.bounds && p.diagnosis.compact && !p.diagnosis.estimated);
+        CHECK(p.bounds->top == controls.top + (controls.bottom - controls.top - height) / 2);
+        CHECK(p.bounds->right - p.bounds->left == width);
+        CHECK(!resolving);
+    }
+    setup(false);
+    title = {};
+    upperHit = HTCAPTION;
+    captionSlot = {controls.left - 27, controls.top + 10, controls.left - 3, controls.bottom};
+    const auto lower = search();
+    CHECK(lower.bounds && lower.diagnosis.compact && !lower.diagnosis.estimated);
+    CHECK(lower.bounds->top == controls.top + 8); // centered candidate intersects HTCLIENT
     std::cout << "PASS: " << checks << " caption-region regression checks (API doubles)\n";
 }

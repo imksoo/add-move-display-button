@@ -258,7 +258,7 @@ void Application::show_about() {
     const std::wstring text =
         std::wstring{kAppName} + L" " + kVersion +
         L" — MIT License\n\n"
-        L"前面ウィンドウのタイトルバーに移動ボタンを重ねます。\n"
+        L"表示中のウィンドウに移動ボタンを重ねます（非アクティブも対象）。\n"
         L"左クリック: 次のモニター / 右クリック: 移動先を選択\n\n"
         L"DLL注入・キーボードフック・通信・自動起動登録は行いません。\n"
         L"親だけでなく、実際の入力先ウィンドウも自動で判定します。\n"
@@ -392,6 +392,9 @@ bool Application::add_tray() {
 }
 
 void Application::on_event(DWORD event, HWND hwnd, LONG object) {
+    if (inactive_) {
+        inactive_->on_event(event, hwnd, object);
+    }
     // Out-of-context callbacks only schedule work; no remote messaging here.
     if (event == EVENT_OBJECT_DESTROY && object == OBJID_WINDOW) {
         const auto destroyed = [hwnd](Identity id) { return id.hwnd == hwnd; };
@@ -524,9 +527,9 @@ LRESULT Application::on_host(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
         if (wParam == kRefreshTimer) {
             KillTimer(hwnd, kRefreshTimer);
             state_.refreshPending = false;
-            refresh_button();
+            refresh_windows();
         } else if (wParam == kFallbackTimer) {
-            refresh_button();
+            refresh_windows();
         } else if (wParam == kMoveTimer) {
             advance_move();
         }
@@ -700,7 +703,18 @@ void Application::refresh_button() {
     }
 }
 
+void Application::refresh_windows() {
+    if (state_.topologyDirty) {
+        refresh_monitors();
+    }
+    if (inactive_) {
+        inactive_->refresh();
+    }
+    refresh_button();
+}
+
 void Application::cleanup() noexcept {
+    inactive_.reset();
     if (state_.move.active()) {
         end_move(true);
     }
@@ -831,6 +845,7 @@ int Application::run(const win32::Options& options) {
                     MB_OK | MB_ICONERROR);
         return 1;
     }
+    inactive_ = std::make_unique<InactiveButtons>(*this);
     eventOwner_ = this;
     constexpr DWORD flags = WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS;
     const DWORD ranges[][2] = {{EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND},
@@ -848,7 +863,7 @@ int Application::run(const win32::Options& options) {
     if (!SetTimer(state_.host.get(), kFallbackTimer, 500, nullptr)) {
         return 1;
     }
-    refresh_button();
+    refresh_windows();
     MSG message{};
     int status;
     while ((status = GetMessageW(&message, nullptr, 0, 0)) > 0) {

@@ -1,5 +1,6 @@
 #include "placement.hpp"
 #include "win32_helpers.hpp"
+#include <vector>
 
 namespace mtmb {
 Identity identify(HWND hwnd) {
@@ -434,7 +435,23 @@ private:
             mtmb::clamp(static_cast<int>(controls.bottom), top, top + dip(72, monitor.dpi));
         const int smallFirst = buttonsOnLeft ? static_cast<int>(controls.right) + gap
                                              : static_cast<int>(controls.left) - gap - smallW;
-        for (int cy = top; !exhausted && cy + smallH <= bottom; cy += dip(4, monitor.dpi)) {
+        // Prefer vertical alignment with the caption controls before searching
+        // top-to-bottom. A small safe button must not float at the top merely
+        // because that was the first row visited. Every point is still hit-tested.
+        std::vector<int> rows;
+        if (bottom - top >= smallH) {
+            const int centered = top + (bottom - top - smallH) / 2;
+            rows.push_back(centered);
+            for (int cy = top; cy + smallH <= bottom; cy += dip(4, monitor.dpi)) {
+                if (cy != centered) {
+                    rows.push_back(cy);
+                }
+            }
+        }
+        for (const int cy : rows) {
+            if (exhausted) {
+                break;
+            }
             for (int attempt = 0; attempt < 10; ++attempt) {
                 if (!budget()) {
                     exhausted = true;
