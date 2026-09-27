@@ -108,7 +108,7 @@ int main() {
         result.diagnosis.reason = PlacementReason::AccessDenied;
         result.diagnosis.error = ERROR_ACCESS_DENIED;
         const auto text = format_diagnostics(identity, result, false, false, 2);
-        CHECK(text.find(L"0.1.5 表示診断") != std::wstring::npos);
+        CHECK(text.find(L"0.1.6 表示診断") != std::wstring::npos);
         CHECK(text.find(L"アクセス拒否 (5)") != std::wstring::npos);
         CHECK(text.find(L"Candidate: 10,20 - 30,40") != std::wstring::npos);
         CHECK(text.find(L"PrivateTitleMustNotBeRead") == std::wstring::npos);

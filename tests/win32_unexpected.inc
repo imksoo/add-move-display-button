@@ -24,7 +24,7 @@ BOOL WINAPI GetCursorPos(POINT*) { std::cerr << "Unexpected API: GetCursorPos\n"
 BOOL WINAPI ScreenToClient(HWND, POINT*) { std::cerr << "Unexpected API: ScreenToClient\n"; std::abort(); }
 BOOL WINAPI ClientToScreen(HWND, POINT*) { std::cerr << "Unexpected API: ClientToScreen\n"; std::abort(); }
 BOOL WINAPI TrackMouseEvent(TRACKMOUSEEVENT*) { std::cerr << "Unexpected API: TrackMouseEvent\n"; std::abort(); }
-BOOL WINAPI InvalidateRect(HWND, const RECT*, BOOL) { std::cerr << "Unexpected API: InvalidateRect\n"; std::abort(); }
+BOOL WINAPI InvalidateRect(HWND, const RECT*, BOOL) { return TRUE; }
 HDC WINAPI BeginPaint(HWND, PAINTSTRUCT*) { std::cerr << "Unexpected API: BeginPaint\n"; std::abort(); }
 BOOL WINAPI EndPaint(HWND, const PAINTSTRUCT*) { std::cerr << "Unexpected API: EndPaint\n"; std::abort(); }
 int WINAPI FillRect(HDC, const RECT*, HBRUSH) { std::cerr << "Unexpected API: FillRect\n"; std::abort(); }

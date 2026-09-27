@@ -8,7 +8,7 @@
 
 namespace mtmb {
 inline constexpr wchar_t kAppName[] = L"MoveToMonitorButton";
-inline constexpr wchar_t kVersion[] = L"0.1.5";
+inline constexpr wchar_t kVersion[] = L"0.1.6";
 inline constexpr int kMaxMonitors = 64;
 
 struct Identity {
@@ -55,7 +55,8 @@ enum class PlacementReason {
     InputUnresolved,
     Occluded,
     NoCaption,
-    Ineligible
+    Ineligible,
+    MatchedCaption
 };
 
 struct PlacementDiagnosis {
@@ -66,6 +67,11 @@ struct PlacementDiagnosis {
     int probes = 0;
     UINT monitorDpi = 0;
     bool dwm = false, compact = false, estimated = false;
+    // Screen-pixel measurement, never DPI-scaled a second time.
+    RECT referenceButton{};
+    int referenceIndex = 0, measuredGap = 0;
+    DWORD titlebarError = 0;
+    bool matchedSize = false;
     HWND hitWindow{};
     int routedProbes = 0, unrelatedPoints = 0, unresolvedPoints = 0;
 };

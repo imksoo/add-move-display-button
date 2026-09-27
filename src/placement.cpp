@@ -126,7 +126,8 @@ private:
         return diagnosis_.lastHit == HTCAPTION;
     }
 
-    bool safe_caption_rect(HWND hwnd, mtmb::Rect r, bool& unavailable) {
+    bool safe_caption_rect(HWND hwnd, mtmb::Rect r, bool& unavailable,
+                           bool measuredNativeButton = false) {
         const int xs[5] = {(r.left + r.right) / 2, r.left + 2, r.right - 3, r.left + 2,
                            r.right - 3};
         const int ys[5] = {(r.top + r.bottom) / 2, r.top + 2, r.top + 2, r.bottom - 3,
@@ -146,11 +147,112 @@ private:
                 ++diagnosis_.unrelatedPoints;
                 return false;
             }
-            if (!probe_caption(input, xs[i], ys[i], unavailable)) {
+            if (probe_caption(input, xs[i], ys[i], unavailable)) {
+                continue;
+            }
+            // A measured native button can span the top resize strip. Windows
+            // returns HTTOP there even though the rest is draggable caption.
+            // Accept ONLY the two upper samples, on the target root itself,
+            // inside its SDK-sized resize strip. Center/bottom, child inputs,
+            // HTCLIENT, corners and failed queries keep the strict rejection.
+            const bool topSample = i == 1 || i == 2;
+            const auto style = static_cast<DWORD_PTR>(GetWindowLongPtrW(hwnd, GWL_STYLE));
+            if (unavailable || !measuredNativeButton || !topSample || input != hwnd ||
+                diagnosis_.lastHit != HTTOP || !(style & WS_THICKFRAME) || IsZoomed(hwnd)) {
+                return false;
+            }
+            const UINT dpi = diagnosis_.monitorDpi;
+            const int strip = GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi) +
+                              GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+            if (ys[i] < diagnosis_.window.top || ys[i] >= diagnosis_.window.top + strip) {
                 return false;
             }
         }
         return true;
+    }
+
+    // WM_GETTITLEBARINFOEX is a system message (< WM_USER): Windows marshals
+    // TITLEBARINFOEX for other processes. Use a bounded synchronous send and
+    // validate geometry, not its message return value (normally zero).
+    std::optional<RECT> measured_button(const RECT& window, const RECT& controls, const RECT& frame,
+                                        UINT dpi, bool dwm) {
+        TITLEBARINFOEX info{};
+        info.cbSize = sizeof(info);
+        DWORD_PTR ignored = 0;
+        SetLastError(ERROR_SUCCESS);
+        if (!SendMessageTimeoutW(target_.hwnd, WM_GETTITLEBARINFOEX, 0,
+                                 reinterpret_cast<LPARAM>(&info), SMTO_ABORTIFHUNG | SMTO_BLOCK, 20,
+                                 &ignored)) {
+            diagnosis_.titlebarError = GetLastError();
+            return std::nullopt;
+        }
+        const auto visible = [&](int index) {
+            constexpr DWORD hidden = STATE_SYSTEM_INVISIBLE | STATE_SYSTEM_OFFSCREEN;
+            const RECT& candidate = info.rgrect[index];
+            return !(info.rgstate[index] & hidden) && contains(rect(window), rect(candidate)) &&
+                   candidate.top >= frame.top && candidate.bottom <= frame.top + dip(100, dpi) &&
+                   candidate.right - candidate.left >= dip(12, dpi) &&
+                   candidate.right - candidate.left <= dip(100, dpi) &&
+                   candidate.bottom - candidate.top >= dip(12, dpi) &&
+                   candidate.bottom - candidate.top <= dip(72, dpi);
+        };
+        // Include help and disabled-but-visible controls in the exclusion bounds.
+        // Disabled is NOT invisible and does not make its dimensions unusable.
+        RECT measuredGroup{};
+        for (const int index : {2, 3, 4, 5}) {
+            if (visible(index)) {
+                UnionRect(&measuredGroup, &measuredGroup, &info.rgrect[index]);
+            }
+        }
+        if (!valid(rect(measuredGroup))) {
+            return std::nullopt;
+        }
+        const int tolerance = dip(2, dpi);
+        for (const int index : {2, 3, 5}) {
+            if (!visible(index)) {
+                continue;
+            }
+            const RECT candidate = info.rgrect[index];
+            // Reject classic/stale/accessibility bounds inconsistent with actual
+            // DWM bounds. Do not let custom-chrome metadata displace working UI.
+            if (dwm && (candidate.left < controls.left - tolerance ||
+                        candidate.right > controls.right + tolerance ||
+                        candidate.top < controls.top - tolerance ||
+                        candidate.bottom > controls.bottom + tolerance ||
+                        candidate.bottom - candidate.top < (controls.bottom - controls.top) / 2)) {
+                continue;
+            }
+            diagnosis_.referenceIndex = index;
+            diagnosis_.referenceButton = candidate;
+            if (!dwm) {
+                diagnosis_.controls = measuredGroup;
+            }
+            const bool leftAligned =
+                measuredGroup.left + measuredGroup.right < window.left + window.right;
+            int gap = dip(3, dpi);
+            bool foundGap = false;
+            for (const int other : {2, 3, 4, 5}) {
+                if (other == index || !visible(other)) {
+                    continue;
+                }
+                const RECT neighbor = info.rgrect[other];
+                // Measure adjacent horizontal spacing, not another row or an
+                // arbitrary distance to a control on the opposite titlebar edge.
+                if (neighbor.top != candidate.top || neighbor.bottom != candidate.bottom) {
+                    continue;
+                }
+                const int distance =
+                    static_cast<int>(leftAligned ? candidate.left - neighbor.right
+                                                 : neighbor.left - candidate.right);
+                if (distance >= 0 && distance <= dip(12, dpi) && (!foundGap || distance < gap)) {
+                    gap = distance;
+                    foundGap = true;
+                }
+            }
+            diagnosis_.measuredGap = foundGap ? gap : 0;
+            return candidate;
+        }
+        return std::nullopt;
     }
 
     bool calculate() {
@@ -214,6 +316,39 @@ private:
             controls.bottom = controls.top + GetSystemMetricsForDpi(SM_CYCAPTION, monitor.dpi);
         }
         diagnosis_.controls = controls;
+        const auto measured = measured_button(window, controls, frame, monitor.dpi, dwm);
+        controls = diagnosis_.controls;
+        // Prefer the neighboring standard button's exact width, height and
+        // vertical alignment. Never bypass input hit-testing to make it fit.
+        if (measured) {
+            const bool left = controls.left + controls.right < window.left + window.right;
+            const int width = static_cast<int>(measured->right - measured->left);
+            const int spacing = diagnosis_.measuredGap;
+            const int first =
+                static_cast<int>(left ? controls.right + spacing : controls.left - spacing - width);
+            for (int attempt = 0; attempt < 4; ++attempt) {
+                if (diagnosis_.probes >= 160 || GetTickCount64() - started >= 75) {
+                    break;
+                }
+                const int x = first + (left ? 1 : -1) * attempt * (width + spacing);
+                const Rect candidate{x, static_cast<int>(measured->top), x + width,
+                                     static_cast<int>(measured->bottom)};
+                if (!contains(rect(window), candidate) ||
+                    !contains(rect(monitor.info.rcWork), candidate)) {
+                    continue;
+                }
+                bool unavailable = false;
+                if (safe_caption_rect(id.hwnd, candidate, unavailable, true)) {
+                    bounds_ = native(candidate);
+                    diagnosis_.matchedSize = true;
+                    diagnosis_.reason = PlacementReason::MatchedCaption;
+                    return true;
+                }
+                if (unavailable) {
+                    return false;
+                }
+            }
+        }
         const bool buttonsOnLeft = controls.left + controls.right < window.left + window.right;
         const int direction = buttonsOnLeft ? 1 : -1;
         const int gap = mtmb::clamp(dip(3, monitor.dpi), 2, 30);
