@@ -46,6 +46,9 @@ jobs:
         with:
           name: real-app-test-executable
           path: app-under-test
+      - name: Prepare disposable desktop and verify actual visible pixels
+        shell: powershell
+        run: ./tools/Prepare-HostedDesktop.ps1 -OutputDirectory real-app-evidence
       - name: Test real application caption pixels, geometry, hover, and stability
         shell: powershell
         run: ./tools/Test-RealApps.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -OutputDirectory real-app-evidence
