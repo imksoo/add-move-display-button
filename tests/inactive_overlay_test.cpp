@@ -297,12 +297,15 @@ int wmain(int argc, wchar_t** argv) {
         pump(200);
         CHECK(GetForegroundWindow() == active.get());
         SetCursorPos(point.x, point.y);
-        // Returning the cursor queues WM_MOUSEMOVE; do not assume the product
-        // has already repainted after a fixed 100ms sleep on a shared runner.
-        for (int i = 0; i < 30 && screen_pixel(blank) != hoverColor; ++i) {
+        // A single matching read can still be the previous compositor frame.
+        // Pump BEFORE reading, require three consecutive exact matches, and assert
+        // that recorded outcome rather than racing another immediate GetPixel.
+        int stableHoverSamples = 0;
+        for (int i = 0; i < 30 && stableHoverSamples < 3; ++i) {
             pump(100);
+            stableHoverSamples = screen_pixel(blank) == hoverColor ? stableHoverSamples + 1 : 0;
         }
-        CHECK(screen_pixel(blank) == hoverColor); // leaving/releasing cancelled the press
+        CHECK(stableHoverSamples == 3); // leaving/releasing cancelled the press
         // A real right click opens the destination menu on the FIRST click, while
         // the target is inactive. No activation click on B precedes this action.
         INPUT clicks[2]{};
