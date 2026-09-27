@@ -11,6 +11,7 @@ using namespace mtmb;
 
 namespace {
 int checks = 0;
+LRESULT forcedHit = HTNOWHERE; // Test fixture only; default delegates to DefWindowProc.
 
 void check(bool value, const char* message) {
     ++checks;
@@ -34,6 +35,9 @@ void pump(DWORD milliseconds) {
 }
 
 LRESULT CALLBACK fixture_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
+    if (message == WM_NCHITTEST && forcedHit != HTNOWHERE) {
+        return forcedHit;
+    }
     if (message == WM_PAINT) {
         win32::PaintSession paint(hwnd);
         RECT r{};
@@ -267,6 +271,16 @@ int wmain(int argc, wchar_t** argv) {
         const RECT expected = *placement.bounds;
         CHECK(expected.right - expected.left == title.rgrect[2].right - title.rgrect[2].left);
         CHECK(expected.top == title.rgrect[2].top && expected.bottom == title.rgrect[2].bottom);
+        // The narrow native top-edge allowance must not turn a whole client,
+        // resize surface or corner into a safe caption. Use real window callbacks.
+        for (const LRESULT rejected : {HTCLIENT, HTTOP, HTTOPLEFT}) {
+            forcedHit = rejected;
+            const auto rejectedPlacement = find_button_placement(
+                identify(fixture.get()), {monitors, nullptr, nullptr, resolving, false});
+            CHECK(!rejectedPlacement.bounds);
+            CHECK(!rejectedPlacement.diagnosis.matchedSize);
+        }
+        forcedHit = HTNOWHERE;
         {
             ApplicationProcess app(argv[1]);
             for (int i = 0; i < 50; ++i) {
