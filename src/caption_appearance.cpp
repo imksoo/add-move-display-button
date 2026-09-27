@@ -255,9 +255,9 @@ bool render_caption_button(HWND overlay, const CaptionPalette& palette, bool hot
     }
     const win32::GdiSelection selectedBitmap(dc.get(), bitmap.get());
     std::copy(pixels.begin(), pixels.end(), static_cast<std::uint32_t*>(bits));
-    const SIZE size{width, height};
-    const POINT origin{};
-    const BLENDFUNCTION blend{AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
+    SIZE size{width, height};
+    POINT origin{};
+    BLENDFUNCTION blend{AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
     // No WS_EX_TRANSPARENT: the ENTIRE button must remain clickable.
     return UpdateLayeredWindow(overlay, nullptr, nullptr, &size, dc.get(), &origin, 0, &blend,
                                ULW_ALPHA) != FALSE;
