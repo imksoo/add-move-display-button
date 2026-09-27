@@ -1,0 +1,38 @@
+name: Real application caption compatibility
+on:
+  push:
+    branches: [test/real-app-rendering]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inventory:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Inventory real desktop and packaged applications
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          $ErrorActionPreference = 'Stop'
+          $os = Get-CimInstance Win32_OperatingSystem
+          $packages = @(Get-AppxPackage | Where-Object { $_.Name -match 'WindowsNotepad|WindowsStore|WindowsCalculator|WindowsTerminal' } | Select-Object Name,Version,PackageFullName,PackageFamilyName,InstallLocation)
+          $session = [Diagnostics.Process]::GetCurrentProcess().SessionId
+          $info = [ordered]@{ os=$os.Caption; build=$os.BuildNumber; arch=$env:PROCESSOR_ARCHITECTURE; sessionId=$session; userInteractive=[Environment]::UserInteractive; imageOS=$env:ImageOS; imageVersion=$env:ImageVersion; packages=$packages }
+          $info | ConvertTo-Json -Depth 5 | Tee-Object -FilePath evidence/inventory.json
+          query session
+          git archive --format=zip --output=evidence/source-snapshot.zip HEAD
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: real-app-inventory-${{ matrix.os }}
+          path: evidence/
+          retention-days: 7
+          if-no-files-found: error
