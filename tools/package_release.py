@@ -11,7 +11,10 @@ import zipfile
 
 
 def read_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8-sig"))
+    # PowerShell 5 Tee-Object writes UTF-16 with a BOM; pwsh/Set-Content
+    # commonly write UTF-8. json.loads(bytes) detects Unicode encodings without
+    # lossy replacement, so preserve the evidence and still reject invalid JSON.
+    return json.loads(path.read_bytes())
 
 
 def require(condition: bool, message: str) -> None:
