@@ -37,6 +37,8 @@ jobs:
           Copy-Item build/Release/MoveToMonitorButton.exe,build/Release/build-info.json,build/startup-result.json,build/test-results.xml,README.md,LICENSE dist/
           Copy-Item docs/*.md dist/docs/
           Copy-Item tools/Check-Startup.cmd dist/
+          New-Item -ItemType Directory -Force dist/test-programs | Out-Null
+          Copy-Item build/Release/inactive_overlay_test.exe dist/test-programs/
           $hash = (Get-FileHash dist/MoveToMonitorButton.exe -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  MoveToMonitorButton.exe" | Set-Content dist/SHA256SUMS.txt -Encoding ascii
           $metadata = Get-Content dist/build-info.json -Raw | ConvertFrom-Json
@@ -63,7 +65,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: real-app-test-executable
           path: app-under-test
@@ -73,6 +75,9 @@ jobs:
       - name: Test real application caption pixels, geometry, hover, and stability
         shell: powershell
         run: ./tools/Test-RealApps.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -OutputDirectory real-app-evidence
+      - name: Test the actual EXE on inactive windows and first-click menus
+        shell: powershell
+        run: ./tools/Test-InactiveWindows.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -TestPath app-under-test/test-programs/inactive_overlay_test.exe -OutputDirectory real-app-evidence
       - name: Keep all results and screenshots including environment blocks
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -91,7 +96,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: real-app-test-executable
           path: app-under-test
@@ -101,6 +106,9 @@ jobs:
       - name: Test real application caption pixels, geometry, hover, and stability
         shell: powershell
         run: ./tools/Test-RealApps.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -OutputDirectory real-app-evidence
+      - name: Test the actual EXE on inactive windows and first-click menus
+        shell: powershell
+        run: ./tools/Test-InactiveWindows.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -TestPath app-under-test/test-programs/inactive_overlay_test.exe -OutputDirectory real-app-evidence
       - name: Keep all results and screenshots including environment blocks
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -110,7 +118,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
   tested-release:
-    name: Publish only the EXE verified on both Server desktops
+    name: Package only the EXE verified on both Server desktops
     needs: [build, desktop, sdk-checks]
     runs-on: ubuntu-latest
     steps:
@@ -171,7 +179,6 @@ jobs:
             echo "Release $tag already exists; its assets will NOT be overwritten." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          # Refuse an unrelated pre-existing tag. Do not retag an existing version.
           gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/$tag" > tag-refs.json
           python - "$tag" <<'PYTHON'
           import json, os, sys

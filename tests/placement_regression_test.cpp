@@ -202,7 +202,7 @@ LRESULT WINAPI SendMessageTimeoutW(HWND, UINT message, WPARAM, LPARAM lp, UINT, 
         *result = static_cast<DWORD_PTR>(
             !maximized && y < window.top + static_cast<int>(8 * dpi / 96) ? upperHit : bodyHit);
         if (valid(rect(captionSlot)) && (x < captionSlot.left || x >= captionSlot.right ||
-                                        y < captionSlot.top || y >= captionSlot.bottom)) {
+                                         y < captionSlot.top || y >= captionSlot.bottom)) {
             *result = HTCLIENT;
         }
     } else {

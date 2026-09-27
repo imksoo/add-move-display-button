@@ -30,6 +30,7 @@ class ReleaseEvidenceTest(unittest.TestCase):
             folder = "real-app-evidence/real-app-evidence-" + platform + "/"
             self.write(folder + "desktop-readiness.json", {"status": "ready"})
             self.write(folder + "results.json", self.results)
+            self.write(folder + "inactive-result.json", {"passed": True, "executableSha256": self.digest, "commit": "abc"})
 
     def write(self, name, value):
         file = self.root / name
@@ -66,6 +67,17 @@ class ReleaseEvidenceTest(unittest.TestCase):
     def test_blocked_desktop(self):
         self.write("real-app-evidence/real-app-evidence-windows-2025/desktop-readiness.json",
                    {"status": "environment-blocked"})
+        with self.assertRaises(ValueError):
+            PACKAGE.verify(self.root, "abc")
+
+    def test_inactive_failure(self):
+        self.write("real-app-evidence/real-app-evidence-windows-2025/inactive-result.json", {"passed": False})
+        with self.assertRaises(ValueError):
+            PACKAGE.verify(self.root, "abc")
+
+    def test_inactive_wrong_binary(self):
+        self.write("real-app-evidence/real-app-evidence-windows-2025/inactive-result.json",
+                   {"passed": True, "executableSha256": "different", "commit": "abc"})
         with self.assertRaises(ValueError):
             PACKAGE.verify(self.root, "abc")
 

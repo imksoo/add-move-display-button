@@ -1,5 +1,6 @@
 #pragma once
 #include "caption_appearance.hpp"
+#include "inactive_buttons.hpp"
 #include "placement.hpp"
 #include "win32_helpers.hpp"
 #include <array>
@@ -41,6 +42,7 @@ public:
 
 private:
     friend struct ApplicationTestAccess;
+    friend class InactiveButtons;
 
     // One instance owns all mutable application state. No process-wide UI/model globals.
     struct State {
@@ -66,6 +68,8 @@ private:
         bool failed = false;
     } state_;
 
+    std::unique_ptr<InactiveButtons> inactive_;
+
     void request_refresh();
     void hide_button();
     void notify(LPCWSTR message);
@@ -79,6 +83,7 @@ private:
     PlacementResult placement_for(Identity target);
     void show_diagnostics(Identity target);
     void refresh_button();
+    void refresh_windows();
     void end_move(bool failed);
     void advance_move();
     void start_move(Identity target, int destination);

@@ -36,6 +36,10 @@ def verify(root: Path, commit: str) -> tuple[str, str]:
     for platform in ("windows-2022", "windows-2025"):
         folder = root / "real-app-evidence" / ("real-app-evidence-" + platform)
         require(read_json(folder / "desktop-readiness.json")["status"] == "ready", "Desktop not ready")
+        inactive = read_json(folder / "inactive-result.json")
+        require(inactive["passed"] is True, "Inactive overlay integration failed")
+        require(inactive["executableSha256"] == digest and inactive["commit"] == commit,
+                "Inactive evidence is for a different commit or EXE")
         results = read_json(folder / "results.json")
         require(results["commit"] == commit and results["executableSha256"] == digest,
                 "Desktop evidence is for a different commit or EXE")
@@ -74,7 +78,7 @@ def package(root: Path, output: Path, commit: str) -> tuple[str, str]:
     portable = output / f"MoveToMonitorButton-v{version}-windows-x64.zip"
     write_zip(portable, application, root)
     evidence = [file for file in (root / "real-app-evidence").rglob("*")
-                if file.is_file() and file.suffix.lower() in (".json", ".png", ".md", ".txt")]
+                if file.is_file() and file.suffix.lower() in (".json", ".png", ".bmp", ".md", ".txt")]
     evidence += [root / "build-info.json", root / "startup-result.json", root / "test-results.xml"]
     write_zip(output / f"MoveToMonitorButton-v{version}-test-evidence.zip", evidence, root)
     (output / "SHA256SUMS.txt").write_text(
