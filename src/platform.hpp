@@ -26,6 +26,7 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <dwmapi.h>
+#include <strsafe.h>
 #include <stdint.h>
 #include <stddef.h>
 #endif
