@@ -275,11 +275,28 @@ int wmain(int argc, wchar_t** argv) {
         clicks[0].type = clicks[1].type = INPUT_MOUSE;
         clicks[0].mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
         clicks[1].mi.dwFlags = MOUSEEVENTF_RIGHTUP;
-        CHECK(SendInput(2, clicks, sizeof(INPUT)) == 2);
+        CHECK(WindowFromPoint(point) == button);
+        CHECK(SendInput(1, &clicks[0], sizeof(INPUT)) == 1);
+        pump(80);
+        CHECK(SendInput(1, &clicks[1], sizeof(INPUT)) == 1);
         HWND menu = nullptr;
         for (int i = 0; i < 30 && !menu; ++i) {
             pump(100);
             menu = FindWindowW(L"#32768", nullptr);
+        }
+        if (!menu || !IsWindowVisible(menu)) {
+            GUITHREADINFO details{};
+            details.cbSize = sizeof(details);
+            GetGUIThreadInfo(GetWindowThreadProcessId(button, nullptr), &details);
+            POINT cursor{};
+            GetCursorPos(&cursor);
+            std::cout << "Right-click diagnostic: foreground=" << GetForegroundWindow()
+                      << " host=" << product.host << " active=" << active.get()
+                      << " target=" << inactive.get() << " button=" << button
+                      << " cursor-window=" << WindowFromPoint(cursor)
+                      << " flags=" << details.flags << " menu-owner=" << details.hwndMenuOwner
+                      << " capture=" << details.hwndCapture << '\n';
+            screenshot(inactive.get(), L"inactive-menu-failure.bmp");
         }
         CHECK(menu && IsWindowVisible(menu));
         CHECK(GetForegroundWindow() != inactive.get());
