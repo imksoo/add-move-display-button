@@ -215,6 +215,10 @@ void InactiveButtons::update(Button& button) {
 }
 
 LRESULT InactiveButtons::message(Button& button, HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP || msg == WM_CONTEXTMENU) {
+        SetPropW(hwnd, L"MoveToMonitorButton.InputProbe",
+                 reinterpret_cast<HANDLE>(static_cast<UINT_PTR>(msg)));
+    }
     switch (msg) {
     case WM_NCHITTEST:
         return app_.state_.resolvingInputWindow ? HTTRANSPARENT : HTCLIENT;
@@ -279,7 +283,9 @@ LRESULT InactiveButtons::message(Button& button, HWND hwnd, UINT msg, WPARAM wp,
         POINT cursor{};
         GetCursorPos(&cursor);
         if (app_.eligible(button.target)) {
+            SetPropW(hwnd, L"MoveToMonitorButton.MenuProbe", reinterpret_cast<HANDLE>(1));
             app_.show_menu(cursor, button.target);
+            SetPropW(hwnd, L"MoveToMonitorButton.MenuProbe", reinterpret_cast<HANDLE>(2));
         }
         return 0;
     }

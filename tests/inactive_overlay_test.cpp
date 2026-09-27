@@ -293,9 +293,12 @@ int wmain(int argc, wchar_t** argv) {
             std::cout << "Right-click diagnostic: foreground=" << GetForegroundWindow()
                       << " host=" << product.host << " active=" << active.get()
                       << " target=" << inactive.get() << " button=" << button
-                      << " cursor-window=" << WindowFromPoint(cursor)
-                      << " flags=" << details.flags << " menu-owner=" << details.hwndMenuOwner
-                      << " capture=" << details.hwndCapture << '\n';
+                      << " cursor-window=" << WindowFromPoint(cursor) << " flags=" << details.flags
+                      << " menu-owner=" << details.hwndMenuOwner
+                      << " capture=" << details.hwndCapture
+                      << " last-input=" << GetPropW(button, L"MoveToMonitorButton.InputProbe")
+                      << " menu-stage=" << GetPropW(button, L"MoveToMonitorButton.MenuProbe")
+                      << '\n';
             screenshot(inactive.get(), L"inactive-menu-failure.bmp");
         }
         CHECK(menu && IsWindowVisible(menu));
