@@ -12,6 +12,9 @@ int checks = 0;
 
 void check(bool ok, const char* expression) {
     ++checks;
+    // Flush checkpoints independently of redirected stdout so timeouts retain evidence.
+    static std::ofstream progress("inactive-progress.txt");
+    progress << checks << ": " << expression << " => " << ok << std::endl;
     if (!ok) {
         throw std::runtime_error(expression);
     }
@@ -293,7 +296,11 @@ int wmain(int argc, wchar_t** argv) {
         pump(200);
         CHECK(GetForegroundWindow() == active.get());
         SetCursorPos(point.x, point.y);
-        pump(100);
+        // Returning the cursor queues WM_MOUSEMOVE; do not assume the product
+        // has already repainted after a fixed 100ms sleep on a shared runner.
+        for (int i = 0; i < 30 && screen_pixel(blank) != hoverColor; ++i) {
+            pump(100);
+        }
         CHECK(screen_pixel(blank) == hoverColor); // leaving/releasing cancelled the press
         // A real right click opens the destination menu on the FIRST click, while
         // the target is inactive. No activation click on B precedes this action.
