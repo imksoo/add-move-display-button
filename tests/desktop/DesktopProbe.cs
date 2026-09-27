@@ -65,6 +65,9 @@ public static class DesktopProbe
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
     [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
     [DllImport("user32.dll")] private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+    [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr hwnd, IntPtr dc);
+    [DllImport("gdi32.dll", SetLastError=true)] private static extern bool BitBlt(IntPtr target, int x, int y, int width, int height, IntPtr source, int sourceX, int sourceY, uint operation);
     [DllImport("dwmapi.dll", EntryPoint="DwmGetWindowAttribute")] private static extern int DwmRect(IntPtr hwnd, int attribute, out Rect bounds, int size);
     [DllImport("user32.dll", EntryPoint="SendMessageTimeoutW", SetLastError=true)] private static extern IntPtr QueryTitle(IntPtr hwnd, uint message, IntPtr wp, ref TitleInfo info, uint flags, uint timeout, out UIntPtr result);
     [DllImport("user32.dll", EntryPoint="SendMessageTimeoutW", SetLastError=true)] private static extern IntPtr Query(IntPtr hwnd, uint message, IntPtr wp, IntPtr lp, uint flags, uint timeout, out UIntPtr result);
@@ -81,7 +84,7 @@ public static class DesktopProbe
         uint pid; GetWindowThreadProcessId(hwnd, out pid);
         var r = new WindowInfo(); r.Handle = hwnd.ToInt64(); r.Pid = (int)pid;
         r.Class = ClassName(hwnd); r.Visible = IsWindowVisible(hwnd); GetWindowRect(hwnd, out r.Bounds);
-        try { using (var p = Process.GetProcessById((int)pid)) { r.Process = p.ProcessName; r.Version = p.MainModule.FileVersionInfo.FileVersion; } } catch { r.Process = "unavailable"; }
+        try { using (var p = Process.GetProcessById((int)pid)) { r.Process = p.ProcessName; try { r.Version = p.MainModule.FileVersionInfo.FileVersion; } catch { } } } catch { r.Process = "unavailable"; }
         var handle = OpenProcess(0x1000, false, pid);
         if (handle != IntPtr.Zero) {
             try { uint length = 0; if (GetPackageFullName(handle, ref length, null) == 122) { var name = new StringBuilder((int)length); if (GetPackageFullName(handle, ref length, name) == 0) r.Package = name.ToString(); } }
@@ -92,7 +95,11 @@ public static class DesktopProbe
     public static WindowInfo[] Windows()
     {
         var found = new List<WindowInfo>();
-        EnumWindows(delegate(IntPtr hwnd, IntPtr data) { found.Add(Describe(hwnd)); return true; }, IntPtr.Zero);
+        EnumWindows(delegate(IntPtr hwnd, IntPtr data) {
+            // A PowerShell process also owns a console. It is not its WPF/WinForms fixture.
+            if (ClassName(hwnd) != "ConsoleWindowClass") found.Add(Describe(hwnd));
+            return true;
+        }, IntPtr.Zero);
         return found.ToArray();
     }
     public static CaptionInfo Caption(IntPtr hwnd)
@@ -125,8 +132,19 @@ public static class DesktopProbe
         r.Bottom = Math.Min(r.Bottom,r.Top + Math.Max(140, (int)GetDpiForWindow(target) * 140 / 96));
         r.Left = Math.Max(r.Left,left); r.Top = Math.Max(r.Top,top); r.Right = Math.Min(r.Right,right); r.Bottom = Math.Min(r.Bottom,bottom);
         if (r.Width < 100 || r.Height < 20) throw new InvalidOperationException("Capture rectangle is offscreen.");
-        using (var image = new Bitmap(r.Width,r.Height,PixelFormat.Format32bppArgb)) {
-            using (var g = Graphics.FromImage(image)) g.CopyFromScreen(r.Left,r.Top,0,0,image.Size,CopyPixelOperation.SourceCopy | CopyPixelOperation.CaptureBlt);
+        // Framework Graphics.CopyFromScreen rejects combined raster-operation flags.
+        // Use real GDI SRCCOPY | CAPTUREBLT so the product's layered overlay is included.
+        // RGB output deliberately has no alpha channel that could hide captured pixels.
+        using (var image = new Bitmap(r.Width,r.Height,PixelFormat.Format24bppRgb)) {
+            using (var g = Graphics.FromImage(image)) {
+                IntPtr screen = GetDC(IntPtr.Zero);
+                if (screen == IntPtr.Zero) throw new Win32Exception();
+                try {
+                    IntPtr destination = g.GetHdc();
+                    try { if (!BitBlt(destination,0,0,r.Width,r.Height,screen,r.Left,r.Top,0x40cc0020)) throw new Win32Exception(); }
+                    finally { g.ReleaseHdc(destination); }
+                } finally { ReleaseDC(IntPtr.Zero,screen); }
+            }
             image.Save(path,ImageFormat.Png);
         }
         return r;

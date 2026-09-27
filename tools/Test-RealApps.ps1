@@ -56,31 +56,47 @@ function Stop-Utility($process) {
     $process.Dispose()
 }
 function Get-NewTarget($before,$spec,$launched) {
-    $deadline = [DateTime]::UtcNow.AddSeconds(25)
+    $deadline = [DateTime]::UtcNow.AddSeconds(35)
+    $last = 0L; $stable = 0
     do {
+        $selected = $null
         $candidates = @([DesktopProbe]::Windows() | Where-Object { $_.Visible -and $_.Bounds.Width -gt 250 -and $_.Bounds.Height -gt 100 -and $before -notcontains $_.Handle })
         foreach ($w in $candidates) {
-            if ($spec.Kind -eq 'Framework' -and $w.Pid -eq $launched.Id) { return $w }
-            if ($spec.Kind -eq 'Explorer' -and $w.Class -eq 'CabinetWClass') { return $w }
-            if ($spec.Kind -eq 'Notepad' -and $w.Process -match '^notepad$') { return $w }
-            if ($spec.Kind -eq 'Mmc' -and $w.Process -eq 'mmc') { return $w }
-            if ($spec.Kind -eq 'Package') {
-                if ($w.Package -like "$($spec.Package)_*") { return $w }
-                if ($w.Class -eq 'ApplicationFrameWindow') {
+            $match = $false
+            if ($spec.Kind -eq 'Framework' -and $w.Pid -eq $launched.Id) {
+                $match = ($spec.Framework -eq 'WPF' -and $w.Class -like 'HwndWrapper*') -or ($spec.Framework -eq 'WinForms' -and $w.Class -like 'WindowsForms10.Window*')
+            }
+            elseif ($spec.Kind -eq 'Explorer') { $match = $w.Class -eq 'CabinetWClass' }
+            elseif ($spec.Kind -eq 'Notepad') { $match = $w.Process -match '^notepad$' }
+            elseif ($spec.Kind -eq 'Mmc') { $match = $w.Process -eq 'mmc' }
+            elseif ($spec.Kind -eq 'Package') {
+                $match = $w.Package -like "$($spec.Package)_*"
+                if (-not $match -and $w.Class -eq 'ApplicationFrameWindow') {
                     $caption = [DesktopProbe]::Caption([IntPtr]$w.Handle)
-                    if (@($caption.Children | Where-Object { $_.Package -like "$($spec.Package)_*" }).Count) { return $w }
+                    $match = @($caption.Children | Where-Object { $_.Package -like "$($spec.Package)_*" }).Count -gt 0
                 }
             }
+            if ($match) {
+                # CoreWindow can initially appear top-level and then be reparented.
+                # Never move/test the child content as though it were the app frame.
+                $caption = [DesktopProbe]::Caption([IntPtr]$w.Handle)
+                if (($caption.Style -band 0x40000000) -ne 0) { continue }
+                $selected = $w; break
+            }
         }
-        Start-Sleep -Milliseconds 250
+        if ($null -ne $selected -and $selected.Handle -eq $last) { $stable++ } else { $stable=0 }
+        if ($null -ne $selected) { $last = $selected.Handle } else { $last=0 }
+        if ($stable -ge 6) { return $selected }
+        Start-Sleep -Milliseconds 300
     } while ([DateTime]::UtcNow -lt $deadline)
-    throw 'The requested application did not create a new identifiable top-level window.'
+    throw 'The requested application did not create a stable new identifiable top-level window.'
 }
 function Test-WindowState($spec,$target,[string]$mode) {
     $hwnd = [IntPtr]$target.Handle
     $result = [ordered]@{ app=$spec.Name; kind=$spec.Kind; state=$mode; status='failed'; reason=$null; window=$target; caption=$null; overlay=$null; nativeSizeMatched=$null; pixelGlyph=$null; pixelHover=$null; stableSamples=0; hitPoints=0; screenshots=@() }
     $app = $null
     try {
+        Require ([DesktopProbe]::IsWindow($hwnd)) 'Identified target window no longer exists.'
         if ($mode -eq 'maximized') { $null = [DesktopProbe]::ShowWindowAsync($hwnd,3) }
         else {
             $null = [DesktopProbe]::ShowWindowAsync($hwnd,9)
@@ -89,9 +105,12 @@ function Test-WindowState($spec,$target,[string]$mode) {
             $null = [DesktopProbe]::SetWindowPos($hwnd,[IntPtr]::Zero,$work.Left+35,$work.Top+40,$width,[Math]::Min(520,$work.Height-100),0x4014)
         }
         Start-Sleep -Milliseconds 650
-        $null = [DesktopProbe]::SetForegroundWindow($hwnd)
         $null = [DesktopProbe]::SetCursorPos($work.Left+10,$work.Bottom-50)
-        Start-Sleep -Milliseconds 750
+        for ($focusAttempt=0;$focusAttempt -lt 5;$focusAttempt++) {
+            $null = [DesktopProbe]::SetForegroundWindow($hwnd)
+            Start-Sleep -Milliseconds 350
+            if ([DesktopProbe]::GetForegroundWindow() -eq $hwnd) { break }
+        }
         Require ([DesktopProbe]::GetForegroundWindow() -eq $hwnd) 'Test cannot obtain target foreground; not an overlay verdict.'
         Require ([DesktopProbe]::IsZoomed($hwnd) -eq ($mode -eq 'maximized')) 'Target did not reach the requested window state.'
         $caption = [DesktopProbe]::Caption($hwnd)
@@ -131,11 +150,11 @@ function Test-WindowState($spec,$target,[string]$mode) {
         }
         $oh = [IntPtr]$overlay.Handle
         $points = @(
-            (New-Object DesktopProbe+Point($bounds.Left+3,$bounds.Top+3)),
-            (New-Object DesktopProbe+Point($bounds.Right-4,$bounds.Top+3)),
-            (New-Object DesktopProbe+Point($bounds.Left+3,$bounds.Bottom-4)),
-            (New-Object DesktopProbe+Point($bounds.Right-4,$bounds.Bottom-4)),
-            (New-Object DesktopProbe+Point(($bounds.Left+[int]($bounds.Width/2)),($bounds.Top+[int]($bounds.Height/2))))
+            [DesktopProbe+Point]::new(($bounds.Left+3),($bounds.Top+3)),
+            [DesktopProbe+Point]::new(($bounds.Right-4),($bounds.Top+3)),
+            [DesktopProbe+Point]::new(($bounds.Left+3),($bounds.Bottom-4)),
+            [DesktopProbe+Point]::new(($bounds.Right-4),($bounds.Bottom-4)),
+            [DesktopProbe+Point]::new(($bounds.Left+[int]($bounds.Width/2)),($bounds.Top+[int]($bounds.Height/2)))
         )
         foreach ($point in $points) {
             Require ([DesktopProbe]::WindowFromPoint($point) -eq $oh) 'Overlay has a click-through hole or is occluded.'
@@ -170,8 +189,9 @@ function Test-WindowState($spec,$target,[string]$mode) {
         Write-Host "$($result.app) / $mode : $($result.status) $($result.reason)"
     }
 }
+$hasModernNotepad = @($packages | Where-Object Name -eq 'Microsoft.WindowsNotepad').Count -gt 0
 $specs = @(
-    @{Name='Notepad'; Kind='Notepad'; Package='Microsoft.WindowsNotepad'; RequireNativeMatch=(@($packages | Where-Object Name -eq 'Microsoft.WindowsNotepad').Count -eq 0)},
+    @{Name='Notepad'; Kind=$(if ($hasModernNotepad) {'Package'} else {'Notepad'}); Package='Microsoft.WindowsNotepad'; RequireNativeMatch=(-not $hasModernNotepad)},
     @{Name='Explorer'; Kind='Explorer'; Package=$null; RequireNativeMatch=$false},
     @{Name='TaskScheduler'; Kind='Mmc'; Package=$null; RequireNativeMatch=$true},
     @{Name='MicrosoftStore'; Kind='Package'; Package='Microsoft.WindowsStore'; RequireNativeMatch=$false},
