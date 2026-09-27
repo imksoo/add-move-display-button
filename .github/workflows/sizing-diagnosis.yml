@@ -44,7 +44,7 @@ jobs:
               $b=$c.Title.Buttons[2];$rows=@()
               foreach($attempt in 0..3) {
                 $left=$c.Controls.Left-$b.Width*($attempt+1)
-                foreach($x in @($left+2,$left+[int]($b.Width/2),$left+$b.Width-3)) {
+                foreach($x in @(($left+2),($left+[int]($b.Width/2)),($left+$b.Width-3))) {
                   for($y=$b.Top;$y -lt $b.Bottom;$y++) {
                     $input=[DesktopProbe]::WindowFromPoint([DesktopProbe+Point]::new($x,$y))
                     $rows+=@{x=$x;y=$y;attempt=$attempt;input=[DesktopProbe]::Describe($input);hit=[DesktopProbe]::Hit($input,$x,$y);rootHit=[DesktopProbe]::Hit($hwnd,$x,$y)}
@@ -64,18 +64,3 @@ jobs:
           name: explorer-sizing-diagnosis
           path: evidence/
           retention-days: 14
-  source:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-      - run: |
-          mkdir evidence
-          git archive --format=zip --output=evidence/source.zip HEAD
-          python -m pip download --only-binary=:all: --no-deps clang-format==18.1.8 --dest evidence
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: sizing-source-snapshot
-          path: evidence/
-          retention-days: 1
