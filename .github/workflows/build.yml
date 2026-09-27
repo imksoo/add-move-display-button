@@ -35,9 +35,9 @@ jobs:
         if: matrix.configuration == 'Release'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force dist | Out-Null
+          New-Item -ItemType Directory -Force dist/docs | Out-Null
           Copy-Item build/Release/MoveToMonitorButton.exe,README.md,LICENSE dist/
-          Copy-Item docs/ARCHITECTURE.md dist/
+          Copy-Item docs/ARCHITECTURE.md dist/docs/
           Copy-Item build/Release/build-info.json,build/startup-result.json,build/test-results.xml dist/
           Copy-Item tools/Check-Startup.cmd dist/
           $hash = (Get-FileHash dist/MoveToMonitorButton.exe -Algorithm SHA256).Hash.ToLowerInvariant()

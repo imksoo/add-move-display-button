@@ -7,14 +7,16 @@
 
 namespace {
 int checks = 0;
-#define CHECK(condition)                                                                           \
-    do {                                                                                           \
-        ++checks;                                                                                  \
-        if (!(condition)) {                                                                        \
-            std::cerr << "FAIL line " << __LINE__ << ": " << #condition << '\n';                   \
-            std::exit(1);                                                                          \
-        }                                                                                          \
-    } while (false)
+
+void check(bool condition, const char* expression, int line) {
+    ++checks;
+    if (!condition) {
+        std::cerr << "FAIL line " << line << ": " << expression << '\n';
+        std::exit(1);
+    }
+}
+
+#define CHECK(condition) check(static_cast<bool>(condition), #condition, __LINE__)
 } // namespace
 
 int main() {
