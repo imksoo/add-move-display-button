@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
-      - name: Verify and apply locally tested source patch
+      - name: Verify and apply source only (workflow edits use the authorized connector)
         shell: bash
         run: |
           python - <<'PY'
@@ -30,11 +30,12 @@ jobs:
           PY
           git apply --check /tmp/native-caption.patch
           git apply /tmp/native-caption.patch
-          rm -r .github/native-caption-import
-          rm .github/workflows/import-native-caption.yml
+          git restore .github/workflows
+          git rm -r .github/native-caption-import
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add src tests CMakeLists.txt README.md assets docs
+          git diff --cached --check
           git commit -m 'Match measured caption buttons with translucent appearance and Windows integration tests'
           git push origin HEAD:refs/heads/build/native-caption
           git rev-parse HEAD HEAD^{tree}
