@@ -1,4 +1,5 @@
 // Black-box test of the actual EXE: two visible targets, only one foreground.
+#include "desktop_fixture.hpp"
 #include "win32_helpers.hpp"
 #include <algorithm>
 #include <filesystem>
@@ -237,13 +238,13 @@ int wmain(int argc, wchar_t** argv) {
         RECT work{};
         CHECK(SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0));
         const int width = std::min<LONG>(470, (work.right - work.left - 60) / 2);
-        mtmb::win32::UniqueWindow active{CreateWindowExW(
-            0, wc.lpszClassName, L"Fixture A: foreground stays here", WS_OVERLAPPEDWINDOW,
-            work.left + 20, work.top + 40, width, 220, nullptr, nullptr, module, nullptr)};
-        mtmb::win32::UniqueWindow inactive{CreateWindowExW(
-            0, wc.lpszClassName, L"Fixture B: inactive button works without activation",
-            WS_OVERLAPPEDWINDOW, work.left + width + 40, work.top + 290, width, 220, nullptr,
-            nullptr, module, nullptr)};
+        DesktopFixtures fixtures(module);
+        auto active =
+            fixtures.create(wc.lpszClassName, L"Fixture A: foreground stays here",
+                            WS_OVERLAPPEDWINDOW, work.left + 20, work.top + 40, width, 220);
+        auto inactive = fixtures.create(
+            wc.lpszClassName, L"Fixture B: inactive button works without activation",
+            WS_OVERLAPPEDWINDOW, work.left + width + 40, work.top + 290, width, 220);
         CHECK(active && inactive);
         ShowWindow(inactive.get(), SW_SHOWNOACTIVATE);
         ShowWindow(active.get(), SW_SHOW);
@@ -359,10 +360,9 @@ int wmain(int argc, wchar_t** argv) {
         point = center(rect);
         // Cover the old button with an unrelated non-topmost window. Our button
         // must not float above it or intercept its clicks, even before refresh.
-        mtmb::win32::UniqueWindow cover{
-            CreateWindowExW(0, wc.lpszClassName, L"Occluder", WS_POPUP, rect.left - 5, rect.top - 5,
-                            rect.right - rect.left + 10, rect.bottom - rect.top + 10, nullptr,
-                            nullptr, module, nullptr)};
+        auto cover =
+            fixtures.create(wc.lpszClassName, L"Occluder", WS_POPUP, rect.left - 5, rect.top - 5,
+                            rect.right - rect.left + 10, rect.bottom - rect.top + 10);
         CHECK(cover);
         ShowWindow(cover.get(), SW_SHOW);
         SetForegroundWindow(cover.get());
