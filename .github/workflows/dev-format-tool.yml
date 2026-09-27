@@ -10,7 +10,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Fetch pinned development formatter (not an application dependency)
-        run: python -m pip download --only-binary=:all: --no-deps clang-format==18.1.8 --dest formatter
+        run: >-
+          python -m pip download --only-binary=:all: --no-deps clang-format==18.1.8 --dest formatter
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: development-clang-format-18
