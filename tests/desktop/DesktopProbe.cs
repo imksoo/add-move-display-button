@@ -41,11 +41,10 @@ public static class DesktopProbe
         public bool Maximized; public List<WindowInfo> Children;
     }
     public sealed class PixelChange { public int Changed, Pixels; public double MeanDifference; }
-    private delegate bool EnumProc(IntPtr hwnd, IntPtr context);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string cls, string title);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int capacity);
     [DllImport("dwmapi.dll", EntryPoint="DwmGetWindowAttribute")] private static extern int DwmValue(IntPtr hwnd, int attribute, out uint value, int size);
-    [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr hwnd, EnumProc proc, IntPtr context);
+    [DllImport("user32.dll")] private static extern bool SystemParametersInfo(uint action,uint param,out uint value,uint flags);
     [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
@@ -119,7 +118,13 @@ public static class DesktopProbe
         c.Style = GetWindowLongPtr(hwnd,-16).ToInt64(); c.ExStyle = GetWindowLongPtr(hwnd,-20).ToInt64();
         c.Dpi = GetDpiForWindow(hwnd); c.Maximized = IsZoomed(hwnd);
         c.Children = new List<WindowInfo>();
-        EnumChildWindows(hwnd,delegate(IntPtr child, IntPtr data) { if (c.Children.Count < 64) c.Children.Add(Describe(child)); return c.Children.Count < 64; },IntPtr.Zero);
+        var pending=new Queue<IntPtr>(); var seen=new HashSet<IntPtr>(); pending.Enqueue(hwnd);
+        while (pending.Count>0 && c.Children.Count<64) {
+            var parent=pending.Dequeue(); IntPtr child=IntPtr.Zero;
+            while ((child=FindWindowEx(parent,child,null,null))!=IntPtr.Zero && seen.Add(child) && c.Children.Count<64) {
+                c.Children.Add(Describe(child)); pending.Enqueue(child);
+            }
+        }
         return c;
     }
     public static long Hit(IntPtr hwnd, int x, int y)
@@ -128,6 +133,22 @@ public static class DesktopProbe
         return Query(hwnd,0x84,IntPtr.Zero,new IntPtr((long)packed),0x23,500,out result) == IntPtr.Zero ? -9999 : unchecked((long)result.ToUInt64());
     }
     public static bool Responsive(IntPtr hwnd) { UIntPtr result; return Query(hwnd,0,IntPtr.Zero,IntPtr.Zero,0x23,2000,out result) != IntPtr.Zero; }
+    public static object InputSettings() {
+        uint tracking,zorder,timeout;
+        bool a=SystemParametersInfo(0x1000,0,out tracking,0);
+        bool b=SystemParametersInfo(0x100c,0,out zorder,0);
+        bool c=SystemParametersInfo(0x2002,0,out timeout,0);
+        Point cursor; GetCursorPos(out cursor);
+        return new { TrackingOk=a, Tracking=tracking, ZOrderOk=b, ZOrder=zorder, TimeoutOk=c, Timeout=timeout,
+            Cursor=cursor, AtCursor=Describe(WindowFromPoint(cursor)), Foreground=Describe(GetForegroundWindow()) };
+    }
+    public static void CaptureScreen(string path) {
+        int x=GetSystemMetrics(76),y=GetSystemMetrics(77),w=GetSystemMetrics(78),h=GetSystemMetrics(79);
+        using (var image=new Bitmap(w,h,PixelFormat.Format24bppRgb)) {
+            using (var graphics=Graphics.FromImage(image)) graphics.CopyFromScreen(x,y,0,0,new Size(w,h));
+            image.Save(path,ImageFormat.Png);
+        }
+    }
     public static Rect CaptureCaption(IntPtr target, string path)
     {
         if (GetForegroundWindow() != target) throw new InvalidOperationException("Capture blocked: test target is not foreground.");

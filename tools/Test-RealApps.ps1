@@ -43,6 +43,7 @@ $evidence = [ordered]@{
     chromeVersion = $null
     workArea = $work
     packages = @($packages | Select-Object Name,@{n='Version';e={$_.Version.ToString()}},PackageFullName)
+    inputSettings = [DesktopProbe]::InputSettings()
     scope = 'Actual EXE; real apps and explicitly labelled framework fixtures; one monitor override; no physical monitor movement.'
     cases = New-Object System.Collections.Generic.List[object]
     fatalError = $null
@@ -101,7 +102,7 @@ function Get-NewTarget($before,$spec,$launched) {
 }
 function Test-WindowState($spec,$target,[string]$mode) {
     $hwnd = [IntPtr]$target.Handle
-    $result = [ordered]@{ app=$spec.Name; kind=$spec.Kind; state=$mode; status='failed'; reason=$null; window=$target; caption=$null; overlay=$null; nativeSizeMatched=$null; pixelGlyph=$null; pixelHover=$null; stableSamples=0; hitPoints=0; screenshots=@(); focusSetup=$null; foreground=$null; hitObservations=@() }
+    $result = [ordered]@{ app=$spec.Name; kind=$spec.Kind; state=$mode; status='failed'; reason=$null; window=$target; caption=$null; overlay=$null; nativeSizeMatched=$null; pixelGlyph=$null; pixelHover=$null; stableSamples=0; hitPoints=0; screenshots=@(); focusSetup=$null; foreground=$null; hitObservations=@(); failureContext=$null }
     $app = $null
     try {
         Require ([DesktopProbe]::IsWindow($hwnd)) 'Identified target window no longer exists.'
@@ -199,7 +200,13 @@ function Test-WindowState($spec,$target,[string]$mode) {
         Require ($hot.Changed -ge 6) 'Hover did not visibly change the overlay.'
         Require ([DesktopProbe]::Responsive($oh)) 'Overlay message loop is unresponsive.'
         $result.status = 'passed'
-    } catch { $result.reason = $_.Exception.Message }
+    } catch {
+        $result.reason = $_.Exception.Message
+        try {
+            $result.failureContext=[pscustomobject]@{ input=[DesktopProbe]::InputSettings(); target=[DesktopProbe]::Describe($hwnd); windows=[DesktopProbe]::Windows() }
+            [DesktopProbe]::CaptureScreen((Join-Path $out "$($spec.Name)-$mode-failure.png"))
+        } catch { $result.reason += " Diagnostic capture: $($_.Exception.Message)" }
+    }
     finally {
         try { Stop-Utility $app } catch { $result.status='failed'; $result.reason="$($result.reason) Cleanup: $($_.Exception.Message)" }
         $null = [DesktopProbe]::SetCursorPos($work.Left+10,$work.Bottom-50)
@@ -277,7 +284,7 @@ try {
             $target = Get-NewTarget $before $spec $launched
             foreach ($mode in @('normal','maximized','restored-narrow')) { Test-WindowState $spec $target $mode }
         } catch {
-            [DesktopProbe]::Windows() | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $out "$($spec.Name)-launch-windows.json") -Encoding UTF8
+            [pscustomobject]@{ windows=[DesktopProbe]::Windows(); frames=@([DesktopProbe]::Windows() | Where-Object Class -eq 'ApplicationFrameWindow' | ForEach-Object { [DesktopProbe]::Caption([IntPtr]$_.Handle) }) } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $out "$($spec.Name)-launch-windows.json") -Encoding UTF8
             $evidence.cases.Add([pscustomobject]@{app=$spec.Name; kind=$spec.Kind; state='launch'; status='failed'; reason=$_.Exception.Message})
             Save-Evidence
             Write-Host "$($spec.Name) launch failed: $($_.Exception.Message)"
