@@ -2,9 +2,15 @@
 
 This change instruments the desktop preflight. It changes no product code or Windows settings.
 
-## 2026-09-30 実行結果：直接原因を特定
+## 2026-09-30 再検証：直接原因と未確定部分
+
+起点の[Issue #2](https://github.com/imksoo/add-move-display-button/issues/2)はopen、コメント0。[PR #3](https://github.com/imksoo/add-move-display-button/pull/3)と[PR #4](https://github.com/imksoo/add-move-display-button/pull/4)は9月27日merge済み、[v0.1.8](https://github.com/imksoo/add-move-display-button/releases/tag/v0.1.8)も公開済み。この公開はWindows 11 Armの合格を意味しない。
+
+元のrun [36304010382](https://github.com/imksoo/add-move-display-button/actions/runs/36304010382)だけでは、2色とも`#F0F4EE`、foreground不一致、同一cropという結果までしか分からない。所有HWNDやinput desktopの記録がないため、そのrunの原因を後から断定しない。以下は同じArm image `20260920.164.1`で追加計測して再現した障害の診断である。
 
 Windows 11 Armでは、初回privacy設定UIがsentinelを覆い、前面と採取点を占有している。今回の実行ではsession/window station/input desktopの不一致ではない。GetPixelとBitBltは両方、そのUIの画素を取得している。製品EXEはこの診断で起動していない。
+
+**確定した範囲:** 画素検査が失敗する直接原因は、sentinelの採取点がprivacy UIに覆われていること。**未確定:** 初回UIがhosted imageの初期化後に残る上流原因、内部z-order band、初回設定完了後の同一Arm環境での合格。環境修復や製品試験完了を宣言するものではない。
 
 - 実行: [36657431081](https://github.com/imksoo/add-move-display-button/actions/runs/36657431081)
 - PR head: `90af64a9ab241c3e432b4e0f64bd3d120f5adfe9`
@@ -38,6 +44,38 @@ Windows 11 Armでは、初回privacy設定UIがsentinelを覆い、前面と採�
 ### 診断以外のCI失敗
 
 最初のrun [36657232424](https://github.com/imksoo/add-move-display-button/actions/runs/36657232424)では変更していないinactive_overlay試験が `stableHoverSamples == 3` で失敗し、build依存のArmジョブがskipされた。このため製品EXEを必要としない診断だけを独立させた。run 36657431081でもSDK Releaseジョブ `109704681933` の同じチェックが失敗している。必須製品試験や公開ゲートは維持し、リトライで失敗履歴を隠していない。このPRは診断用draftであり、これらの失敗を直した／製品試験全体が合格したとは扱わない。
+
+### 別runによる再現確認
+
+[36657796325](https://github.com/imksoo/add-move-display-button/actions/runs/36657796325)、attempt 1。PR head `0df8bb08570736243e8d21c13c7d4d85fde58b47`、実際のPR合成コミット `af65126b2df6e1f725ef5653f0cdcd8c7126e66d`。Arm job `109705766735`はenvironment-blocked、Server 2022対照job `109705766990`は成功した。診断コードは先のrunと同じ。
+
+- Armは同じimage/build。全12観測の前後でSession 2 / WTSActive / WinSta0 / Default / UOI_IO=trueが一致。
+- SentinelはPID 8476、HWND 721068。WM_PAINTは1から12まで進み、全phaseが一致。
+- 全観測でforeground前後と採取点のrootはWWAHost PID 8872、HWND 66056、`Microsoft account`。全画面画像も初回privacy設定を示す。同じHWND数値が別runに現れることは、プロセスやVMが同じという意味ではない。
+- 期待色`#1161AD` / `#AD6111`に対し、両GDI経路は両phaseとも`#F1F4F5`。背景のRGB値自体は先のrunと異なるが、期待色が出ないこととUI所有者は同じ。12枚のcropはrun内で同一ハッシュ。
+- 2つのrunの全画面PNGには、期待する2色の完全一致画素がいずれも0個。採取座標だけがずれていたという説明を支持しない。
+
+[再検証のJSON](evidence/issue-2-36657796325/arm-desktop-diagnostic.json)と[全画面PNG](evidence/issue-2-36657796325/arm-desktop-failure-full.png)、[取得元・ハッシュ](evidence/issue-2-36657796325/manifest.json)を保存した。原本JSONとPNGの対応座標のRGBを照合した。
+
+このrunのSDK Debug/Releaseも`stableHoverSamples == 3`で失敗した。PR #4が修正した「待機直後の別GetPixel再読込」は既に除かれている。現在の失敗には待機中の実RGB・cursor/captureの記録がなく、同じ原因や単なるflaky testとは断定できない。これは別VMのx64製品統合試験であり、製品EXEを起動しないArm preflightの原因ではない。本診断でhover期待値や待機条件は変更しない。
+
+## 候補の判別と最小変更
+
+| 候補 | 必要な観測 | 今回の判定 |
+|---|---|---|
+| Session / window station / input desktopの不一致 | 各capture前後のSessionId、WTS state、station名/visible、thread/input desktop名とUOI_IO、API失敗 | 再現した両runで一致。不一致を支持しない。OpenInputDesktop成功だけで正常としない |
+| 初回privacy UIの遮蔽 | foreground、採取点のroot HWND、PID/session/class/title/rect、全画面PNG | WWAHostの同一ウィンドウが前面と採取点を占有し、PNGもprivacy UI。直接原因を確認 |
+| 座標/DPIまたはsentinel描画未処理 | DPI context、window rect、画面座標とbitmap座標、WM_PAINT/phase、全画面の期待色 | DPI96、phase処理済み。期待色は全画面にもない。可視化完了はpaint回数だけでは証明しない |
+| GetPixel固有の不整合 | 同一screen DC・対応座標のraw COLORREFとBitBlt PNGのRGB | 両者が一致してprivacy UIを取得。GetPixelだけの問題を支持しない |
+| Hosted desktopのcomposition / driver | 遮蔽物なし・context一致でもGDIだけが更新しない場合、独立したmonitor-level DXGI取得を追加 | 両APIともGDIなので全composition問題の不存在は証明できない。今回は遮蔽で説明でき、DXGIは次段階に留める |
+
+必要な実行時変更は3ファイルに限定した。
+
+1. `tests/desktop/DesktopReadiness.cs`: 既存sentinel処理を抽出し、上記context/window/paint/同一座標RGBを追記。失敗時だけ全画面・window inventory・期限付き追加観測を保存する。
+2. `tools/Test-DesktopReadiness.ps1`: プローブをロードし、元の2色完全一致・失敗exitを保持。元判定と診断追加条件を別項目で記録する。
+3. `.github/workflows/real-apps.yml`: 製品buildに依存しないpreflightだけのArm/Server対照ジョブと、失敗時artifact保存・timeout。製品試験の依存関係と公開条件は維持する。
+
+原因の見えないまま取得APIを置換したり、許容誤差・待機期限を緩和したりする変更は必要ない。PrintWindowやDrawToBitmapでsentinelの内容が描けても、実画面の合格にはしない。DwmFlushは呼出元のDirectX更新を待つAPIで、session全体をflushする検査にはならない。
 
 ## Invariants
 
@@ -79,4 +117,18 @@ PrintWindow/DrawToBitmap are not screen proof. DwmFlush is not a session-wide fl
 
 ## Completion criteria
 
-Diagnose the failing boundary using correlated context/window/pixel evidence. Then establish both original exact colors through GetPixel and the product's BitBlt path with consistent active input context and foreground. Finally validate current Windows 11 Notepad, Explorer, Store and Calculator in normal, maximized and restored states (12 real-app cases), reviewing screenshots and retaining the existing geometry, pixel, hover, stability and shutdown checks. Physical monitor movement and mixed DPI remain separate coverage. Issue #2 remains open until these conditions hold.
+| 段階 | 合格条件 | 現状 |
+|---|---|---|
+| 診断 | 同一run・phaseでcontext、前面/採取点の所有者、paint、対応画素、画像が揃い、不一致の境界を説明できる | 2回のArm再現で直接的な遮蔽を確認 |
+| Preflight | 元の各20×50ms待機後、`#1161AD`と`#AD6111`が両方GetPixelとBitBltで完全一致。activeな同一input context、sentinelの前面・可視・非cloaked・該当paint phaseを確認し、追加観測に救済されず元判定がready | Armは未合格。Server対照の合格で代替しない |
+| Windows 11製品試験 | 合格したpreflightと**同じjob/desktop**で現行Notepad・Explorer・Store・Calculatorの通常/最大化/復元後12条件を実行。commit、image、パッケージversion、実EXE hashを記録し、既存geometry/pixel/hover/stability/shutdownと画像レビューを通す。unavailable/skipは合格に含めない | 未開始。独立preflightジョブの成功を別VMの製品ジョブへ流用しない |
+| Issue #2完了 | 上記Armのpreflightと12条件の証跡が揃う。物理複数モニター移動・混在DPIは別coverageとして明記 | openを維持 |
+
+次の環境修復では、初回設定が完了した使い捨てWindows 11 Arm desktopを用意し、同じプローブで前面/採取点がsentinelへ変わり両色が一致することを確認する。UIが消えたことだけでは合格にしない。UIが消えてもGDIが更新しない場合に限りDXGIのadapter/output、HRESULT、frame時刻を追加し、compositionの調査へ進む。
+
+## API仕様の根拠
+
+- [OpenInputDesktop](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-openinputdesktop): disconnected sessionでもhandleが返り得るため、WTS stateと併記する。
+- [GetUserObjectInformation](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getuserobjectinformationa): UOI_IOは入力を受けるdesktopかどうかを表す。
+- [BitBlt](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-bitblt): SRCCOPYにCAPTUREBLTを含めた実screen DC取得を使用する。
+- [DwmFlush](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/nf-dwmapi-dwmflush): session全体のrendering batchはflushしない。

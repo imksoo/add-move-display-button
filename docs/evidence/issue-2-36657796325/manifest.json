@@ -1,0 +1,21 @@
+{
+  "run_url": "https://github.com/imksoo/add-move-display-button/actions/runs/36657796325",
+  "attempt": 1,
+  "head_sha": "0df8bb08570736243e8d21c13c7d4d85fde58b47",
+  "tested_merge_sha": "af65126b2df6e1f725ef5653f0cdcd8c7126e66d",
+  "job_id": 109705766735,
+  "artifact_id": 11072198954,
+  "artifact_name": "desktop-preflight-windows-11-arm",
+  "artifact_sha256": "98b94137fe09704d18204fc5238c6bb5afa652e720d3e3eb434ef4559605a35c",
+  "files": {
+    "arm-desktop-diagnostic.json": {
+      "sha256": "985420b76fc05d4a4e2ce94d3e756569ae9568a4e07d4935e9df3aeefafda8fd",
+      "bytes": 68580
+    },
+    "arm-desktop-failure-full.png": {
+      "sha256": "c1a8ddd8942e497c8d1e2483c5613e01ceeb94b679c8dd72c88846ac0fbd1b69",
+      "bytes": 186633
+    }
+  },
+  "note": "Copied unmodified from Actions artifact; PNG visually reviewed. Crop images remain in Actions artifact."
+}
