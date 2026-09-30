@@ -2,8 +2,7 @@
 param([string]$OutputDirectory='real-app-evidence/desktop-setup')
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
-# This is environment preparation, deliberately separate from the read-only pixel gate.
-# Never run against a personal desktop, a persistent runner, or a non-Windows-11 image.
+# Environment provisioning is separate from the unmodified read-only pixel gate.
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted' -or $env:ImageOS -notin @('win11-arm64','win11-vs2026-arm64')) {
     throw 'Desktop setup is restricted to disposable GitHub-hosted Windows 11 Arm runners.'
 }
@@ -11,18 +10,48 @@ $os=Get-CimInstance Win32_OperatingSystem
 if ($os.ProductType -ne 1 -or [int]$os.BuildNumber -lt 22000) { throw 'Windows 11 client required.' }
 $out=[IO.Path]::GetFullPath($OutputDirectory)
 $null=New-Item -ItemType Directory -Force $out
-$bootstrap=[ordered]@{ stage='loading'; image=$env:ImageOS; imageVersion=$env:ImageVersion; commit=$env:GITHUB_SHA; error=$null }
-$bootstrap | ConvertTo-Json | Set-Content (Join-Path $out 'bootstrap.json') -Encoding UTF8
+$report=[ordered]@{ stage='starting'; success=$false; image=$env:ImageOS; imageVersion=$env:ImageVersion; commit=$env:GITHUB_SHA; before=$null; after=$null; policies=@(); closeAction=$null; error=$null }
+function Save-Setup { $report | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $out 'desktop-setup.json') -Encoding UTF8 }
+function Set-PrivacyPolicy([string]$path,[string]$name,[int]$value) {
+    $old=Get-ItemProperty -LiteralPath $path -Name $name -ErrorAction SilentlyContinue
+    $previous=if ($null -eq $old) { $null } else { $old.$name }
+    $null=New-Item -Path $path -Force
+    $null=New-ItemProperty -LiteralPath $path -Name $name -Value $value -PropertyType DWord -Force
+    $actual=(Get-ItemProperty -LiteralPath $path -Name $name).$name
+    if ($actual -ne $value) { throw "Policy write did not persist: $path / $name" }
+    $report.policies+=@{path=$path;name=$name;before=$previous;after=$actual}
+    Save-Setup
+}
+Save-Setup
 try {
-    Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,WindowsBase
-    $references=@('System.dll','System.Core.dll','System.Web.Extensions.dll',
-        [System.Windows.Automation.AutomationElement].Assembly.Location,
-        [System.Windows.Automation.AutomationPattern].Assembly.Location,
-        [System.Windows.Rect].Assembly.Location)
-    Add-Type -Path (Join-Path $PSScriptRoot '../tests/desktop/HostedDesktopSetup.cs') -ReferencedAssemblies $references
-    $bootstrap.stage='loaded'
-} catch { $bootstrap.error=$_.Exception.ToString(); throw }
-finally { $bootstrap | ConvertTo-Json | Set-Content (Join-Path $out 'bootstrap.json') -Encoding UTF8 }
-$result=[HostedDesktopSetup]::CompletePrivacyPage($out)
-$result | ConvertTo-Json -Depth 8
-if (-not $result.Success) { throw $result.Error }
+    Add-Type -Path (Join-Path $PSScriptRoot '../tests/desktop/HostedDesktopSetup.cs') -ReferencedAssemblies System.dll,System.Drawing.dll,System.Windows.Forms.dll
+    $report.before=[HostedDesktopSetup]::Observe()
+    Save-Setup
+    [HostedDesktopSetup]::Capture((Join-Path $out 'before.png'))
+    if ($null -ne $report.before) { [HostedDesktopSetup]::Validate($report.before) }
+    # Microsoft policy mappings: Privacy, Experience, TextInput and System CSPs.
+    # Disable optional collection explicitly before suppressing the setup UI.
+    Set-PrivacyPolicy 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' 'AllowTelemetry' 1
+    Set-PrivacyPolicy 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\TextInput' 'AllowLinguisticDataCollection' 0
+    Set-PrivacyPolicy 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy' 'LetAppsAccessLocation' 2
+    Set-PrivacyPolicy 'HKLM:\SOFTWARE\Policies\Microsoft\FindMyDevice' 'AllowFindMyDevice' 0
+    Set-PrivacyPolicy 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableTailoredExperiencesWithDiagnosticData' 1
+    Set-PrivacyPolicy 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo' 'DisabledByGroupPolicy' 1
+    Set-PrivacyPolicy 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OOBE' 'DisablePrivacyExperience' 1
+    Set-PrivacyPolicy 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\OOBE' 'DisablePrivacyExperience' 1
+    $report.stage='policy-applied'; Save-Setup
+    if ($null -ne $report.before) {
+        $report.closeAction=[HostedDesktopSetup]::CloseVerified($report.before)
+        Save-Setup
+    }
+    for ($i=0;$i -lt 30;$i++) {
+        Start-Sleep -Milliseconds 100
+        if ($null -ne [HostedDesktopSetup]::Observe()) { throw 'Setup UI reappeared after policy application.' }
+    }
+    $report.after=[HostedDesktopSetup]::Observe()
+    [HostedDesktopSetup]::Capture((Join-Path $out 'after.png'))
+    $report.success=$true
+} catch { $report.error=$_.Exception.ToString(); throw }
+finally { $report.stage='complete'; Save-Setup; $report | ConvertTo-Json -Depth 8 }
+# Success here means provisioning completed, never that screen capture passed.
+# Every caller MUST run Test-DesktopReadiness.ps1 afterwards in this same job.

@@ -100,7 +100,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Complete first-logon privacy setup on the disposable Arm runner
+      - name: Provision privacy policy on the disposable Arm runner
         if: matrix.os == 'windows-11-arm'
         timeout-minutes: 3
         shell: powershell
@@ -131,7 +131,7 @@ jobs:
         with:
           name: real-app-test-executable
           path: app-under-test
-      - name: Complete first-logon privacy setup on the disposable Windows 11 runner
+      - name: Provision privacy policy on the disposable Windows 11 runner
         timeout-minutes: 3
         shell: powershell
         run: ./tools/Initialize-HostedDesktop.ps1 -OutputDirectory real-app-evidence/desktop-setup

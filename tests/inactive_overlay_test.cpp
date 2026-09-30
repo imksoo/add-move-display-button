@@ -303,7 +303,22 @@ int wmain(int argc, wchar_t** argv) {
         int stableHoverSamples = 0;
         for (int i = 0; i < 30 && stableHoverSamples < 3; ++i) {
             pump(100);
-            stableHoverSamples = screen_pixel(blank) == hoverColor ? stableHoverSamples + 1 : 0;
+            const COLORREF restoredColor = screen_pixel(blank);
+            stableHoverSamples = restoredColor == hoverColor ? stableHoverSamples + 1 : 0;
+            POINT cursor{};
+            GetCursorPos(&cursor);
+            const RECT currentBounds = bounds(button);
+            gui.cbSize = sizeof(gui);
+            GetGUIThreadInfo(GetWindowThreadProcessId(button, nullptr), &gui);
+            std::cout << "Hover restore sample=" << i << " expected=" << hoverColor
+                      << " actual=" << restoredColor << " cursor=" << cursor.x << ',' << cursor.y
+                      << " atPoint=" << WindowFromPoint(cursor) << " button=" << button
+                      << " capture=" << gui.hwndCapture << " foreground=" << GetForegroundWindow()
+                      << " rect=" << currentBounds.left << ',' << currentBounds.top << ','
+                      << currentBounds.right << ',' << currentBounds.bottom << std::endl;
+        }
+        if (stableHoverSamples != 3) {
+            screenshot(inactive.get(), L"inactive-hover-restore-failed.bmp");
         }
         CHECK(stableHoverSamples == 3); // leaving/releasing cancelled the press
         // A real right click opens the destination menu on the FIRST click, while
