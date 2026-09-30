@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -12,6 +13,10 @@ using System.Windows.Automation;
 
 public static class HostedDesktopSetup
 {
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string cls, string title);
+    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+    [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out uint value, int bytes);
     public sealed class Result {
         public bool Success; public string Error, Stage, StartedUtc, FinishedUtc;
         public int SessionId, Pid; public List<object> Observations=new List<object>();
@@ -39,15 +44,19 @@ public static class HostedDesktopSetup
             Bounds=c.BoundingRectangle.ToString() };
     }
     static AutomationElement FindHost(Result r) {
-        var roots=AutomationElement.RootElement.FindAll(TreeScope.Children,Condition.TrueCondition);
         AutomationElement found=null;
-        foreach (AutomationElement root in roots) {
-            var c=root.Current;
-            if (c.ClassName!="Windows.UI.Core.CoreWindow" || Name(root)!="Microsoft account") continue;
-            using (var process=Process.GetProcessById(c.ProcessId)) {
+        IntPtr hwnd=IntPtr.Zero;
+        while ((hwnd=FindWindowEx(IntPtr.Zero,hwnd,"Windows.UI.Core.CoreWindow","Microsoft account"))!=IntPtr.Zero) {
+            uint pid, cloaked;
+            if (!IsWindowVisible(hwnd)) continue;
+            if (DwmGetWindowAttribute(hwnd,14,out cloaked,4)<0 || cloaked!=0) continue;
+            GetWindowThreadProcessId(hwnd,out pid);
+            using (var process=Process.GetProcessById((int)pid)) {
                 if (process.ProcessName!="WWAHost" || process.SessionId!=r.SessionId) continue;
                 if (found!=null) throw new InvalidOperationException("More than one matching setup host.");
-                found=root; r.Pid=process.Id;
+                // The UIA desktop children view omits this shell-band window on the Arm image.
+                // Resolve the verified native HWND directly; never infer absence from UIA alone.
+                found=AutomationElement.FromHandle(hwnd); r.Pid=process.Id;
             }
         }
         return found;
