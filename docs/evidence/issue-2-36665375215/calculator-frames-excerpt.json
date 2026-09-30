@@ -1,0 +1,348 @@
+{
+  "sourceFile": "Calculator-launch-windows.json",
+  "sourceSha256": "9bc070b05e6ac565be83e024f3c7c8a3e49086740f90eded719db9811ead5586",
+  "note": "Frame observations selected from the full original inventory.",
+  "frames": [
+    {
+      "Window": {
+        "Left": 80,
+        "Top": 64,
+        "Right": 416,
+        "Bottom": 605,
+        "Width": 336,
+        "Height": 541
+      },
+      "Frame": {
+        "Left": 87,
+        "Top": 64,
+        "Right": 409,
+        "Bottom": 598,
+        "Width": 322,
+        "Height": 534
+      },
+      "Controls": {
+        "Left": 0,
+        "Top": 0,
+        "Right": 0,
+        "Bottom": 0,
+        "Width": 0,
+        "Height": 0
+      },
+      "Title": {
+        "Size": 140,
+        "Title": {
+          "Left": 88,
+          "Top": 67,
+          "Right": 408,
+          "Bottom": 64,
+          "Width": 320,
+          "Height": -3
+        },
+        "States": [
+          1048576,
+          32768,
+          32768,
+          32768,
+          32768,
+          32768
+        ],
+        "Buttons": [
+          {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          }
+        ]
+      },
+      "TitleQueryOk": true,
+      "DwmControlsOk": false,
+      "TitleQueryError": 0,
+      "Dpi": 96,
+      "Style": 2496593920,
+      "ExStyle": 2097408,
+      "Maximized": false,
+      "Children": [
+        {
+          "Handle": 721448,
+          "Pid": 2248,
+          "Class": "ApplicationFrameTitleBarWindow",
+          "Process": "ApplicationFrameHost",
+          "Version": "10.0.26100.9278 (WinBuild.160101.0800)",
+          "Package": null,
+          "Title": "",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 220,
+            "Top": 65,
+            "Right": 408,
+            "Bottom": 97,
+            "Width": 188,
+            "Height": 32
+          },
+          "Visible": true
+        },
+        {
+          "Handle": 1310986,
+          "Pid": 5324,
+          "Class": "Windows.UI.Core.CoreWindow",
+          "Process": "CalculatorApp",
+          "Version": null,
+          "Package": "Microsoft.WindowsCalculator_11.2502.2.0_arm64__8wekyb3d8bbwe",
+          "Title": "Calculator",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 88,
+            "Top": 65,
+            "Right": 408,
+            "Bottom": 597,
+            "Width": 320,
+            "Height": 532
+          },
+          "Visible": true
+        },
+        {
+          "Handle": 852478,
+          "Pid": 2248,
+          "Class": "ApplicationFrameTitleBarWindow",
+          "Process": "ApplicationFrameHost",
+          "Version": "10.0.26100.9278 (WinBuild.160101.0800)",
+          "Package": null,
+          "Title": "",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 88,
+            "Top": 64,
+            "Right": 88,
+            "Bottom": 64,
+            "Width": 0,
+            "Height": 0
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 524710,
+          "Pid": 2248,
+          "Class": "ApplicationFrameInputSinkWindow",
+          "Process": "ApplicationFrameHost",
+          "Version": "10.0.26100.9278 (WinBuild.160101.0800)",
+          "Package": null,
+          "Title": "",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 88,
+            "Top": 97,
+            "Right": 408,
+            "Bottom": 597,
+            "Width": 320,
+            "Height": 500
+          },
+          "Visible": true
+        }
+      ]
+    },
+    {
+      "Window": {
+        "Left": 0,
+        "Top": 0,
+        "Right": 1024,
+        "Bottom": 720,
+        "Width": 1024,
+        "Height": 720
+      },
+      "Frame": {
+        "Left": 7,
+        "Top": 0,
+        "Right": 1017,
+        "Bottom": 713,
+        "Width": 1010,
+        "Height": 713
+      },
+      "Controls": {
+        "Left": 0,
+        "Top": 0,
+        "Right": 0,
+        "Bottom": 0,
+        "Width": 0,
+        "Height": 0
+      },
+      "Title": {
+        "Size": 140,
+        "Title": {
+          "Left": 8,
+          "Top": 3,
+          "Right": 1016,
+          "Bottom": 0,
+          "Width": 1008,
+          "Height": -3
+        },
+        "States": [
+          1048576,
+          32768,
+          32768,
+          32768,
+          32768,
+          32768
+        ],
+        "Buttons": [
+          {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          }
+        ]
+      },
+      "TitleQueryOk": true,
+      "DwmControlsOk": false,
+      "TitleQueryError": 0,
+      "Dpi": 96,
+      "Style": 2496593920,
+      "ExStyle": 2097408,
+      "Maximized": false,
+      "Children": [
+        {
+          "Handle": 263136,
+          "Pid": 7540,
+          "Class": "ApplicationFrameTitleBarWindow",
+          "Process": "explorer",
+          "Version": "10.0.26100.8117 (WinBuild.160101.0800)",
+          "Package": null,
+          "Title": "",
+          "Cloaked": 6,
+          "Bounds": {
+            "Left": 8,
+            "Top": 1,
+            "Right": 1016,
+            "Bottom": 33,
+            "Width": 1008,
+            "Height": 32
+          },
+          "Visible": true
+        },
+        {
+          "Handle": 721702,
+          "Pid": 7540,
+          "Class": "ApplicationFrameTitleBarWindow",
+          "Process": "explorer",
+          "Version": "10.0.26100.8117 (WinBuild.160101.0800)",
+          "Package": null,
+          "Title": "",
+          "Cloaked": 6,
+          "Bounds": {
+            "Left": 8,
+            "Top": 0,
+            "Right": 8,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 917550,
+          "Pid": 7540,
+          "Class": "ApplicationFrameInputSinkWindow",
+          "Process": "explorer",
+          "Version": "10.0.26100.8117 (WinBuild.160101.0800)",
+          "Package": null,
+          "Title": "",
+          "Cloaked": 6,
+          "Bounds": {
+            "Left": 8,
+            "Top": 33,
+            "Right": 1016,
+            "Bottom": 712,
+            "Width": 1008,
+            "Height": 679
+          },
+          "Visible": true
+        }
+      ]
+    }
+  ]
+}

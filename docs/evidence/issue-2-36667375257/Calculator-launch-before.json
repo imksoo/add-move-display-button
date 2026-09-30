@@ -1,0 +1,40 @@
+﻿[
+    {
+        "Handle":  721372,
+        "Pid":  7416,
+        "Class":  "ApplicationFrameWindow",
+        "Process":  "ApplicationFrameHost",
+        "Version":  "10.0.26100.9278 (WinBuild.160101.0800)",
+        "Package":  null,
+        "Title":  "",
+        "Cloaked":  2,
+        "Bounds":  {
+                       "Left":  0,
+                       "Top":  0,
+                       "Right":  136,
+                       "Bottom":  39,
+                       "Width":  136,
+                       "Height":  39
+                   },
+        "Visible":  true
+    },
+    {
+        "Handle":  655496,
+        "Pid":  7648,
+        "Class":  "ApplicationFrameWindow",
+        "Process":  "explorer",
+        "Version":  "10.0.26100.8117 (WinBuild.160101.0800)",
+        "Package":  null,
+        "Title":  "",
+        "Cloaked":  2,
+        "Bounds":  {
+                       "Left":  0,
+                       "Top":  0,
+                       "Right":  1024,
+                       "Bottom":  720,
+                       "Width":  1024,
+                       "Height":  720
+                   },
+        "Visible":  true
+    }
+]

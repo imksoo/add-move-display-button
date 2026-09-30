@@ -1,0 +1,16 @@
+{
+  "runUrl": "https://github.com/imksoo/add-move-display-button/actions/runs/36665375215",
+  "jobId": 109729047206,
+  "head": "10b342e0087d96c0230045682685ca18e851b15a",
+  "checkout": "720bdc027cdc17d7c2914f066a8e909d2c1f84d7",
+  "artifactId": 11075563542,
+  "artifactSha256": "a85aedc527c2aeec3c78d2bf0b80b896f0f517159c6cdc8bc2378ffb01914d12",
+  "status": "preflight passed; product suite failed (three WSL terminal foreground interruptions and Calculator discovery)",
+  "files": {
+    "MicrosoftStore-normal-failure.png": "edc4909867e9bb22d2ca1d83de57a13569a228c8c0bd851c36e94e6902a026b5",
+    "calculator-frames-excerpt.json": "8b3b340652c951ade068776bccb66cb3b15c6b84f21e6c971bb04f44649fbc64",
+    "desktop-diagnostic.json": "93221f638e3f4d47969b6c4e15b5bd0f7bb624084522ada32390ea6b022ed507",
+    "desktop-readiness.json": "fc3354c0f0d85179873fd1b92b5a99e322ed8650557fb04bf98e0a3945950c61",
+    "results-excerpt.json": "efe9fa411543fffe3309882ef9ea8b511b911a31546b823e86570ec81ef33dd1"
+  }
+}

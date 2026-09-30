@@ -1,0 +1,15 @@
+{
+  "version": "0.1.8",
+  "compiler": "MSVC",
+  "compilerVersion": "19.44.35229.0",
+  "windowsSdk": "10.0.26100.0",
+  "generator": "Visual Studio 17 2022",
+  "configuration": "Release",
+  "architecture": "x64",
+  "runtime": "MultiThreaded",
+  "officialSdk": true,
+  "customAbi": false,
+  "commit": "7d3311bf76a8a6d356588c8dad7ab3ffc6aa1024",
+  "runUrl": "https://github.com/imksoo/add-move-display-button/actions/runs/36668291468",
+  "executableSha256": "fe29dbeeebe540e054d54044d6cbabddd241ecc7b09c8ad67dcdaf18268e92f4"
+}

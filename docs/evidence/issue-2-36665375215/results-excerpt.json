@@ -1,0 +1,1333 @@
+{
+  "sourceFile": "results.json",
+  "sourceSha256": "7f55f6a110856450a5bc6d1f291bb8c9082ec867943d484953ccddae840f427a",
+  "note": "Selected original fields; complete raw results are in the linked Actions artifact. This is an excerpt, not the original JSON.",
+  "commit": "720bdc027cdc17d7c2914f066a8e909d2c1f84d7",
+  "os": "Microsoft Windows 11 Enterprise",
+  "build": "26200",
+  "hostArchitecture": "ARM64",
+  "executableSha256": "d170df3ec5e87b3f7b3d60d1e09d860e95d1f2217a0945a9616a2f5acd227e1c",
+  "inputSettings": {
+    "TrackingOk": true,
+    "Tracking": 0,
+    "ZOrderOk": true,
+    "ZOrder": 0,
+    "TimeoutOk": true,
+    "Timeout": 0,
+    "Cursor": {
+      "X": 512,
+      "Y": 384
+    },
+    "AtCursor": {
+      "Handle": 524648,
+      "Pid": 2816,
+      "Class": "ConsoleWindowClass",
+      "Process": "wsl",
+      "Version": "10.0.26100.8737 (WinBuild.160101.0800)",
+      "Package": null,
+      "Title": "C:\\Windows\\system32\\wsl.exe",
+      "Cloaked": 0,
+      "Bounds": {
+        "Left": 31,
+        "Top": 52,
+        "Right": 1024,
+        "Bottom": 571,
+        "Width": 993,
+        "Height": 519
+      },
+      "Visible": true
+    },
+    "Foreground": {
+      "Handle": 524648,
+      "Pid": 2816,
+      "Class": "ConsoleWindowClass",
+      "Process": "wsl",
+      "Version": "10.0.26100.8737 (WinBuild.160101.0800)",
+      "Package": null,
+      "Title": "C:\\Windows\\system32\\wsl.exe",
+      "Cloaked": 0,
+      "Bounds": {
+        "Left": 31,
+        "Top": 52,
+        "Right": 1024,
+        "Bottom": 571,
+        "Width": 993,
+        "Height": 519
+      },
+      "Visible": true
+    }
+  },
+  "cases": [
+    {
+      "app": "Notepad",
+      "kind": "Package",
+      "state": "normal",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 393262,
+        "Pid": 8360,
+        "Class": "Notepad",
+        "Process": "Notepad",
+        "Version": "11.2605.34.0",
+        "Package": "Microsoft.WindowsNotepad_11.2605.34.0_arm64__8wekyb3d8bbwe",
+        "Title": "Untitled - Notepad",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 156,
+          "Top": 156,
+          "Right": 924,
+          "Bottom": 675,
+          "Width": 768,
+          "Height": 519
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 779,
+        "Top": 41,
+        "Right": 826,
+        "Bottom": 71,
+        "Width": 47,
+        "Height": 30
+      },
+      "nativeSizeMatched": true,
+      "pixelGlyph": {
+        "Changed": 79,
+        "Pixels": 1410,
+        "MeanDifference": 8.400709219858156
+      },
+      "pixelHover": {
+        "Changed": 1338,
+        "Pixels": 1410,
+        "MeanDifference": 20.32695035460993
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "Notepad-normal-baseline.png",
+        "Notepad-normal-normal.png",
+        "Notepad-normal-hover.png"
+      ]
+    },
+    {
+      "app": "Notepad",
+      "kind": "Package",
+      "state": "maximized",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 393262,
+        "Pid": 8360,
+        "Class": "Notepad",
+        "Process": "Notepad",
+        "Version": "11.2605.34.0",
+        "Package": "Microsoft.WindowsNotepad_11.2605.34.0_arm64__8wekyb3d8bbwe",
+        "Title": "Untitled - Notepad",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 156,
+          "Top": 156,
+          "Right": 924,
+          "Bottom": 675,
+          "Width": 768,
+          "Height": 519
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 830,
+        "Top": 0,
+        "Right": 877,
+        "Bottom": 29,
+        "Width": 47,
+        "Height": 29
+      },
+      "nativeSizeMatched": true,
+      "pixelGlyph": {
+        "Changed": 66,
+        "Pixels": 1363,
+        "MeanDifference": 8.65663976522377
+      },
+      "pixelHover": {
+        "Changed": 1303,
+        "Pixels": 1363,
+        "MeanDifference": 20.30520909757887
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "Notepad-maximized-baseline.png",
+        "Notepad-maximized-normal.png",
+        "Notepad-maximized-hover.png"
+      ]
+    },
+    {
+      "app": "Notepad",
+      "kind": "Package",
+      "state": "restored-narrow",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 393262,
+        "Pid": 8360,
+        "Class": "Notepad",
+        "Process": "Notepad",
+        "Version": "11.2605.34.0",
+        "Package": "Microsoft.WindowsNotepad_11.2605.34.0_arm64__8wekyb3d8bbwe",
+        "Title": "Untitled - Notepad",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 156,
+          "Top": 156,
+          "Right": 924,
+          "Bottom": 675,
+          "Width": 768,
+          "Height": 519
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 495,
+        "Top": 41,
+        "Right": 542,
+        "Bottom": 71,
+        "Width": 47,
+        "Height": 30
+      },
+      "nativeSizeMatched": true,
+      "pixelGlyph": {
+        "Changed": 79,
+        "Pixels": 1410,
+        "MeanDifference": 8.400709219858156
+      },
+      "pixelHover": {
+        "Changed": 1338,
+        "Pixels": 1410,
+        "MeanDifference": 20.32695035460993
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "Notepad-restored-narrow-baseline.png",
+        "Notepad-restored-narrow-normal.png",
+        "Notepad-restored-narrow-hover.png"
+      ]
+    },
+    {
+      "app": "Explorer",
+      "kind": "Explorer",
+      "state": "normal",
+      "status": "failed",
+      "reason": "Overlay disappears or shifts during steady state.",
+      "window": {
+        "Handle": 458784,
+        "Pid": 4296,
+        "Class": "CabinetWClass",
+        "Process": "explorer",
+        "Version": "10.0.26100.8117 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "empty-explorer-fixture - File Explorer",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 122,
+          "Top": 70,
+          "Right": 922,
+          "Bottom": 670,
+          "Width": 800,
+          "Height": 600
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 779,
+        "Top": 41,
+        "Right": 826,
+        "Bottom": 71,
+        "Width": 47,
+        "Height": 30
+      },
+      "nativeSizeMatched": true,
+      "pixelGlyph": null,
+      "pixelHover": null,
+      "stableSamples": 5,
+      "hitPoints": 5,
+      "screenshots": [
+        "Explorer-normal-baseline.png",
+        "Explorer-normal-normal.png"
+      ],
+      "failureInput": {
+        "TrackingOk": true,
+        "Tracking": 0,
+        "ZOrderOk": true,
+        "ZOrder": 0,
+        "TimeoutOk": true,
+        "Timeout": 0,
+        "Cursor": {
+          "X": 10,
+          "Y": 670
+        },
+        "AtCursor": {
+          "Handle": 131366,
+          "Pid": 7540,
+          "Class": "SysListView32",
+          "Process": "explorer",
+          "Version": "10.0.26100.8117 (WinBuild.160101.0800)",
+          "Package": null,
+          "Title": "FolderView",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 0,
+            "Top": 0,
+            "Right": 1024,
+            "Bottom": 768,
+            "Width": 1024,
+            "Height": 768
+          },
+          "Visible": true
+        },
+        "Foreground": {
+          "Handle": 66468,
+          "Pid": 7932,
+          "Class": "CASCADIA_HOSTING_WINDOW_CLASS",
+          "Process": "WindowsTerminal",
+          "Version": "1.24.2607.10001",
+          "Package": "Microsoft.WindowsTerminal_1.24.11911.0_arm64__8wekyb3d8bbwe",
+          "Title": "Terminal",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 44,
+            "Top": 52,
+            "Right": 1088,
+            "Bottom": 687,
+            "Width": 1044,
+            "Height": 635
+          },
+          "Visible": true
+        }
+      },
+      "failureTarget": {
+        "Handle": 458784,
+        "Pid": 4296,
+        "Class": "CabinetWClass",
+        "Process": "explorer",
+        "Version": "10.0.26100.8117 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "empty-explorer-fixture - File Explorer",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 35,
+          "Top": 40,
+          "Right": 979,
+          "Bottom": 560,
+          "Width": 944,
+          "Height": 520
+        },
+        "Visible": true
+      }
+    },
+    {
+      "app": "Explorer",
+      "kind": "Explorer",
+      "state": "maximized",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 458784,
+        "Pid": 4296,
+        "Class": "CabinetWClass",
+        "Process": "explorer",
+        "Version": "10.0.26100.8117 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "empty-explorer-fixture - File Explorer",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 122,
+          "Top": 70,
+          "Right": 922,
+          "Bottom": 670,
+          "Width": 800,
+          "Height": 600
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 830,
+        "Top": 0,
+        "Right": 877,
+        "Bottom": 29,
+        "Width": 47,
+        "Height": 29
+      },
+      "nativeSizeMatched": true,
+      "pixelGlyph": {
+        "Changed": 66,
+        "Pixels": 1363,
+        "MeanDifference": 8.65663976522377
+      },
+      "pixelHover": {
+        "Changed": 1303,
+        "Pixels": 1363,
+        "MeanDifference": 20.30520909757887
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "Explorer-maximized-baseline.png",
+        "Explorer-maximized-normal.png",
+        "Explorer-maximized-hover.png"
+      ]
+    },
+    {
+      "app": "Explorer",
+      "kind": "Explorer",
+      "state": "restored-narrow",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 458784,
+        "Pid": 4296,
+        "Class": "CabinetWClass",
+        "Process": "explorer",
+        "Version": "10.0.26100.8117 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "empty-explorer-fixture - File Explorer",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 122,
+          "Top": 70,
+          "Right": 922,
+          "Bottom": 670,
+          "Width": 800,
+          "Height": 600
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 495,
+        "Top": 41,
+        "Right": 542,
+        "Bottom": 71,
+        "Width": 47,
+        "Height": 30
+      },
+      "nativeSizeMatched": true,
+      "pixelGlyph": {
+        "Changed": 79,
+        "Pixels": 1410,
+        "MeanDifference": 8.400709219858156
+      },
+      "pixelHover": {
+        "Changed": 1338,
+        "Pixels": 1410,
+        "MeanDifference": 20.32695035460993
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "Explorer-restored-narrow-baseline.png",
+        "Explorer-restored-narrow-normal.png",
+        "Explorer-restored-narrow-hover.png"
+      ]
+    },
+    {
+      "app": "Chrome",
+      "kind": "Chrome",
+      "state": "normal",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 524554,
+        "Pid": 8784,
+        "Class": "Chrome_WidgetWin_1",
+        "Process": "chrome",
+        "Version": "153.0.8010.53",
+        "Package": null,
+        "Title": "MTMB isolated Chrome test - Google Chrome",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 10,
+          "Top": 10,
+          "Right": 1014,
+          "Bottom": 710,
+          "Width": 1004,
+          "Height": 700
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 799,
+        "Top": 47,
+        "Right": 823,
+        "Bottom": 63,
+        "Width": 24,
+        "Height": 16
+      },
+      "nativeSizeMatched": null,
+      "pixelGlyph": {
+        "Changed": 90,
+        "Pixels": 384,
+        "MeanDifference": 30.627604166666668
+      },
+      "pixelHover": {
+        "Changed": 306,
+        "Pixels": 384,
+        "MeanDifference": 20.286458333333332
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "Chrome-normal-baseline.png",
+        "Chrome-normal-normal.png",
+        "Chrome-normal-hover.png"
+      ]
+    },
+    {
+      "app": "Chrome",
+      "kind": "Chrome",
+      "state": "maximized",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 524554,
+        "Pid": 8784,
+        "Class": "Chrome_WidgetWin_1",
+        "Process": "chrome",
+        "Version": "153.0.8010.53",
+        "Package": null,
+        "Title": "MTMB isolated Chrome test - Google Chrome",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 10,
+          "Top": 10,
+          "Right": 1014,
+          "Bottom": 710,
+          "Width": 1004,
+          "Height": 700
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 842,
+        "Top": 0,
+        "Right": 874,
+        "Bottom": 24,
+        "Width": 32,
+        "Height": 24
+      },
+      "nativeSizeMatched": null,
+      "pixelGlyph": {
+        "Changed": 90,
+        "Pixels": 768,
+        "MeanDifference": 15.813802083333334
+      },
+      "pixelHover": {
+        "Changed": 690,
+        "Pixels": 768,
+        "MeanDifference": 21.643229166666668
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "Chrome-maximized-baseline.png",
+        "Chrome-maximized-normal.png",
+        "Chrome-maximized-hover.png"
+      ]
+    },
+    {
+      "app": "Chrome",
+      "kind": "Chrome",
+      "state": "restored-narrow",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 524554,
+        "Pid": 8784,
+        "Class": "Chrome_WidgetWin_1",
+        "Process": "chrome",
+        "Version": "153.0.8010.53",
+        "Package": null,
+        "Title": "MTMB isolated Chrome test - Google Chrome",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 10,
+          "Top": 10,
+          "Right": 1014,
+          "Bottom": 710,
+          "Width": 1004,
+          "Height": 700
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 515,
+        "Top": 47,
+        "Right": 539,
+        "Bottom": 63,
+        "Width": 24,
+        "Height": 16
+      },
+      "nativeSizeMatched": null,
+      "pixelGlyph": {
+        "Changed": 90,
+        "Pixels": 384,
+        "MeanDifference": 30.627604166666668
+      },
+      "pixelHover": {
+        "Changed": 306,
+        "Pixels": 384,
+        "MeanDifference": 20.286458333333332
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "Chrome-restored-narrow-baseline.png",
+        "Chrome-restored-narrow-normal.png",
+        "Chrome-restored-narrow-hover.png"
+      ]
+    },
+    {
+      "app": "TaskScheduler",
+      "kind": "Mmc",
+      "state": "normal",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 132116,
+        "Pid": 716,
+        "Class": "MMCMainFrame",
+        "Process": "mmc",
+        "Version": "10.0.26100.3915 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "Task Scheduler",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 224,
+          "Top": 150,
+          "Right": 1024,
+          "Bottom": 720,
+          "Width": 800,
+          "Height": 570
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 779,
+        "Top": 41,
+        "Right": 826,
+        "Bottom": 71,
+        "Width": 47,
+        "Height": 30
+      },
+      "nativeSizeMatched": true,
+      "pixelGlyph": {
+        "Changed": 79,
+        "Pixels": 1410,
+        "MeanDifference": 8.75177304964539
+      },
+      "pixelHover": {
+        "Changed": 1338,
+        "Pixels": 1410,
+        "MeanDifference": 21.295035460992906
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "TaskScheduler-normal-baseline.png",
+        "TaskScheduler-normal-normal.png",
+        "TaskScheduler-normal-hover.png"
+      ]
+    },
+    {
+      "app": "TaskScheduler",
+      "kind": "Mmc",
+      "state": "maximized",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 132116,
+        "Pid": 716,
+        "Class": "MMCMainFrame",
+        "Process": "mmc",
+        "Version": "10.0.26100.3915 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "Task Scheduler",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 224,
+          "Top": 150,
+          "Right": 1024,
+          "Bottom": 720,
+          "Width": 800,
+          "Height": 570
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 830,
+        "Top": 0,
+        "Right": 877,
+        "Bottom": 22,
+        "Width": 47,
+        "Height": 22
+      },
+      "nativeSizeMatched": true,
+      "pixelGlyph": {
+        "Changed": 79,
+        "Pixels": 1034,
+        "MeanDifference": 11.570599613152805
+      },
+      "pixelHover": {
+        "Changed": 962,
+        "Pixels": 1034,
+        "MeanDifference": 21.038684719535784
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "TaskScheduler-maximized-baseline.png",
+        "TaskScheduler-maximized-normal.png",
+        "TaskScheduler-maximized-hover.png"
+      ]
+    },
+    {
+      "app": "TaskScheduler",
+      "kind": "Mmc",
+      "state": "restored-narrow",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 132116,
+        "Pid": 716,
+        "Class": "MMCMainFrame",
+        "Process": "mmc",
+        "Version": "10.0.26100.3915 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "Task Scheduler",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 224,
+          "Top": 150,
+          "Right": 1024,
+          "Bottom": 720,
+          "Width": 800,
+          "Height": 570
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 495,
+        "Top": 41,
+        "Right": 542,
+        "Bottom": 71,
+        "Width": 47,
+        "Height": 30
+      },
+      "nativeSizeMatched": true,
+      "pixelGlyph": {
+        "Changed": 79,
+        "Pixels": 1410,
+        "MeanDifference": 8.75177304964539
+      },
+      "pixelHover": {
+        "Changed": 1338,
+        "Pixels": 1410,
+        "MeanDifference": 21.295035460992906
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "TaskScheduler-restored-narrow-baseline.png",
+        "TaskScheduler-restored-narrow-normal.png",
+        "TaskScheduler-restored-narrow-hover.png"
+      ]
+    },
+    {
+      "app": "MicrosoftStore",
+      "kind": "Package",
+      "state": "normal",
+      "status": "failed",
+      "reason": "Exception calling \"CaptureCaption\" with \"2\" argument(s): \"Capture blocked: test target is not foreground.\"",
+      "window": {
+        "Handle": 328578,
+        "Pid": 2248,
+        "Class": "ApplicationFrameWindow",
+        "Process": "ApplicationFrameHost",
+        "Version": "10.0.26100.9278 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "Microsoft Store",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 40,
+          "Top": 32,
+          "Right": 856,
+          "Bottom": 673,
+          "Width": 816,
+          "Height": 641
+        },
+        "Visible": true
+      },
+      "overlay": null,
+      "nativeSizeMatched": null,
+      "pixelGlyph": null,
+      "pixelHover": null,
+      "stableSamples": 0,
+      "hitPoints": 0,
+      "screenshots": [
+        "MicrosoftStore-normal-baseline.png"
+      ],
+      "failureInput": {
+        "TrackingOk": true,
+        "Tracking": 0,
+        "ZOrderOk": true,
+        "ZOrder": 0,
+        "TimeoutOk": true,
+        "Timeout": 0,
+        "Cursor": {
+          "X": 10,
+          "Y": 670
+        },
+        "AtCursor": {
+          "Handle": 131366,
+          "Pid": 7540,
+          "Class": "SysListView32",
+          "Process": "explorer",
+          "Version": "10.0.26100.8117 (WinBuild.160101.0800)",
+          "Package": null,
+          "Title": "FolderView",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 0,
+            "Top": 0,
+            "Right": 1024,
+            "Bottom": 768,
+            "Width": 1024,
+            "Height": 768
+          },
+          "Visible": true
+        },
+        "Foreground": {
+          "Handle": 787240,
+          "Pid": 8056,
+          "Class": "CASCADIA_HOSTING_WINDOW_CLASS",
+          "Process": "WindowsTerminal",
+          "Version": "1.24.2607.10001",
+          "Package": "Microsoft.WindowsTerminal_1.24.11911.0_arm64__8wekyb3d8bbwe",
+          "Title": "C:\\Windows\\system32\\wsl.exe",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 18,
+            "Top": 26,
+            "Right": 1062,
+            "Bottom": 661,
+            "Width": 1044,
+            "Height": 635
+          },
+          "Visible": true
+        }
+      },
+      "failureTarget": {
+        "Handle": 328578,
+        "Pid": 2248,
+        "Class": "ApplicationFrameWindow",
+        "Process": "ApplicationFrameHost",
+        "Version": "10.0.26100.9278 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "Microsoft Store",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 35,
+          "Top": 40,
+          "Right": 979,
+          "Bottom": 560,
+          "Width": 944,
+          "Height": 520
+        },
+        "Visible": true
+      }
+    },
+    {
+      "app": "MicrosoftStore",
+      "kind": "Package",
+      "state": "maximized",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 328578,
+        "Pid": 2248,
+        "Class": "ApplicationFrameWindow",
+        "Process": "ApplicationFrameHost",
+        "Version": "10.0.26100.9278 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "Microsoft Store",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 40,
+          "Top": 32,
+          "Right": 856,
+          "Bottom": 673,
+          "Width": 816,
+          "Height": 641
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 844,
+        "Top": 3,
+        "Right": 876,
+        "Bottom": 20,
+        "Width": 32,
+        "Height": 17
+      },
+      "nativeSizeMatched": null,
+      "pixelGlyph": {
+        "Changed": 70,
+        "Pixels": 544,
+        "MeanDifference": 21.108455882352942
+      },
+      "pixelHover": {
+        "Changed": 477,
+        "Pixels": 544,
+        "MeanDifference": 20.169117647058822
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "MicrosoftStore-maximized-baseline.png",
+        "MicrosoftStore-maximized-normal.png",
+        "MicrosoftStore-maximized-hover.png"
+      ]
+    },
+    {
+      "app": "MicrosoftStore",
+      "kind": "Package",
+      "state": "restored-narrow",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 328578,
+        "Pid": 2248,
+        "Class": "ApplicationFrameWindow",
+        "Process": "ApplicationFrameHost",
+        "Version": "10.0.26100.9278 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "Microsoft Store",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 40,
+          "Top": 32,
+          "Right": 856,
+          "Bottom": 673,
+          "Width": 816,
+          "Height": 641
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 508,
+        "Top": 47,
+        "Right": 540,
+        "Bottom": 64,
+        "Width": 32,
+        "Height": 17
+      },
+      "nativeSizeMatched": null,
+      "pixelGlyph": {
+        "Changed": 70,
+        "Pixels": 544,
+        "MeanDifference": 21.108455882352942
+      },
+      "pixelHover": {
+        "Changed": 477,
+        "Pixels": 544,
+        "MeanDifference": 20.169117647058822
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "MicrosoftStore-restored-narrow-baseline.png",
+        "MicrosoftStore-restored-narrow-normal.png",
+        "MicrosoftStore-restored-narrow-hover.png"
+      ]
+    },
+    {
+      "app": "Calculator",
+      "kind": "Package",
+      "state": "launch",
+      "status": "failed",
+      "reason": "The requested application did not create a stable new identifiable top-level window."
+    },
+    {
+      "app": "WPF-fixture",
+      "kind": "Framework",
+      "state": "normal",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 394202,
+        "Pid": 11168,
+        "Class": "HwndWrapper[DefaultDomain;Pipeline Execution Thread;30e3699f-7a0a-4128-aafa-6595d774c0b7]",
+        "Process": "powershell",
+        "Version": "10.0.26100.8972 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "MTMB WPF framework fixture",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 104,
+          "Top": 104,
+          "Right": 1004,
+          "Bottom": 604,
+          "Width": 900,
+          "Height": 500
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 779,
+        "Top": 41,
+        "Right": 826,
+        "Bottom": 71,
+        "Width": 47,
+        "Height": 30
+      },
+      "nativeSizeMatched": true,
+      "pixelGlyph": {
+        "Changed": 79,
+        "Pixels": 1410,
+        "MeanDifference": 8.75177304964539
+      },
+      "pixelHover": {
+        "Changed": 1338,
+        "Pixels": 1410,
+        "MeanDifference": 21.295035460992906
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "WPF-fixture-normal-baseline.png",
+        "WPF-fixture-normal-normal.png",
+        "WPF-fixture-normal-hover.png"
+      ]
+    },
+    {
+      "app": "WPF-fixture",
+      "kind": "Framework",
+      "state": "maximized",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 394202,
+        "Pid": 11168,
+        "Class": "HwndWrapper[DefaultDomain;Pipeline Execution Thread;30e3699f-7a0a-4128-aafa-6595d774c0b7]",
+        "Process": "powershell",
+        "Version": "10.0.26100.8972 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "MTMB WPF framework fixture",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 104,
+          "Top": 104,
+          "Right": 1004,
+          "Bottom": 604,
+          "Width": 900,
+          "Height": 500
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 830,
+        "Top": 0,
+        "Right": 877,
+        "Bottom": 22,
+        "Width": 47,
+        "Height": 22
+      },
+      "nativeSizeMatched": true,
+      "pixelGlyph": {
+        "Changed": 79,
+        "Pixels": 1034,
+        "MeanDifference": 11.570599613152805
+      },
+      "pixelHover": {
+        "Changed": 962,
+        "Pixels": 1034,
+        "MeanDifference": 21.038684719535784
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "WPF-fixture-maximized-baseline.png",
+        "WPF-fixture-maximized-normal.png",
+        "WPF-fixture-maximized-hover.png"
+      ]
+    },
+    {
+      "app": "WPF-fixture",
+      "kind": "Framework",
+      "state": "restored-narrow",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 394202,
+        "Pid": 11168,
+        "Class": "HwndWrapper[DefaultDomain;Pipeline Execution Thread;30e3699f-7a0a-4128-aafa-6595d774c0b7]",
+        "Process": "powershell",
+        "Version": "10.0.26100.8972 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "MTMB WPF framework fixture",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 104,
+          "Top": 104,
+          "Right": 1004,
+          "Bottom": 604,
+          "Width": 900,
+          "Height": 500
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 495,
+        "Top": 41,
+        "Right": 542,
+        "Bottom": 71,
+        "Width": 47,
+        "Height": 30
+      },
+      "nativeSizeMatched": true,
+      "pixelGlyph": {
+        "Changed": 79,
+        "Pixels": 1410,
+        "MeanDifference": 8.75177304964539
+      },
+      "pixelHover": {
+        "Changed": 1338,
+        "Pixels": 1410,
+        "MeanDifference": 21.295035460992906
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "WPF-fixture-restored-narrow-baseline.png",
+        "WPF-fixture-restored-narrow-normal.png",
+        "WPF-fixture-restored-narrow-hover.png"
+      ]
+    },
+    {
+      "app": "WinForms-fixture",
+      "kind": "Framework",
+      "state": "normal",
+      "status": "failed",
+      "reason": "Overlay disappears or shifts during steady state.",
+      "window": {
+        "Handle": 328690,
+        "Pid": 11784,
+        "Class": "WindowsForms10.Window.8.app.0.22d612b_r8_ad1",
+        "Process": "powershell",
+        "Version": "10.0.26100.8972 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "MTMB WinForms framework fixture",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 124,
+          "Top": 156,
+          "Right": 1024,
+          "Bottom": 656,
+          "Width": 900,
+          "Height": 500
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 779,
+        "Top": 41,
+        "Right": 826,
+        "Bottom": 71,
+        "Width": 47,
+        "Height": 30
+      },
+      "nativeSizeMatched": true,
+      "pixelGlyph": null,
+      "pixelHover": null,
+      "stableSamples": 4,
+      "hitPoints": 5,
+      "screenshots": [
+        "WinForms-fixture-normal-baseline.png",
+        "WinForms-fixture-normal-normal.png"
+      ],
+      "failureInput": {
+        "TrackingOk": true,
+        "Tracking": 0,
+        "ZOrderOk": true,
+        "ZOrder": 0,
+        "TimeoutOk": true,
+        "Timeout": 0,
+        "Cursor": {
+          "X": 10,
+          "Y": 670
+        },
+        "AtCursor": {
+          "Handle": 131366,
+          "Pid": 7540,
+          "Class": "SysListView32",
+          "Process": "explorer",
+          "Version": "10.0.26100.8117 (WinBuild.160101.0800)",
+          "Package": null,
+          "Title": "FolderView",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 0,
+            "Top": 0,
+            "Right": 1024,
+            "Bottom": 768,
+            "Width": 1024,
+            "Height": 768
+          },
+          "Visible": true
+        },
+        "Foreground": {
+          "Handle": 1048594,
+          "Pid": 12016,
+          "Class": "CASCADIA_HOSTING_WINDOW_CLASS",
+          "Process": "WindowsTerminal",
+          "Version": "1.24.2607.10001",
+          "Package": "Microsoft.WindowsTerminal_1.24.11911.0_arm64__8wekyb3d8bbwe",
+          "Title": "Terminal",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 18,
+            "Top": 26,
+            "Right": 1062,
+            "Bottom": 661,
+            "Width": 1044,
+            "Height": 635
+          },
+          "Visible": true
+        }
+      },
+      "failureTarget": {
+        "Handle": 328690,
+        "Pid": 11784,
+        "Class": "WindowsForms10.Window.8.app.0.22d612b_r8_ad1",
+        "Process": "powershell",
+        "Version": "10.0.26100.8972 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "MTMB WinForms framework fixture",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 35,
+          "Top": 40,
+          "Right": 979,
+          "Bottom": 560,
+          "Width": 944,
+          "Height": 520
+        },
+        "Visible": true
+      }
+    },
+    {
+      "app": "WinForms-fixture",
+      "kind": "Framework",
+      "state": "maximized",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 328690,
+        "Pid": 11784,
+        "Class": "WindowsForms10.Window.8.app.0.22d612b_r8_ad1",
+        "Process": "powershell",
+        "Version": "10.0.26100.8972 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "MTMB WinForms framework fixture",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 124,
+          "Top": 156,
+          "Right": 1024,
+          "Bottom": 656,
+          "Width": 900,
+          "Height": 500
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 830,
+        "Top": 0,
+        "Right": 877,
+        "Bottom": 22,
+        "Width": 47,
+        "Height": 22
+      },
+      "nativeSizeMatched": true,
+      "pixelGlyph": {
+        "Changed": 79,
+        "Pixels": 1034,
+        "MeanDifference": 11.570599613152805
+      },
+      "pixelHover": {
+        "Changed": 962,
+        "Pixels": 1034,
+        "MeanDifference": 21.038684719535784
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "WinForms-fixture-maximized-baseline.png",
+        "WinForms-fixture-maximized-normal.png",
+        "WinForms-fixture-maximized-hover.png"
+      ]
+    },
+    {
+      "app": "WinForms-fixture",
+      "kind": "Framework",
+      "state": "restored-narrow",
+      "status": "passed",
+      "reason": null,
+      "window": {
+        "Handle": 328690,
+        "Pid": 11784,
+        "Class": "WindowsForms10.Window.8.app.0.22d612b_r8_ad1",
+        "Process": "powershell",
+        "Version": "10.0.26100.8972 (WinBuild.160101.0800)",
+        "Package": null,
+        "Title": "MTMB WinForms framework fixture",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 124,
+          "Top": 156,
+          "Right": 1024,
+          "Bottom": 656,
+          "Width": 900,
+          "Height": 500
+        },
+        "Visible": true
+      },
+      "overlay": {
+        "Left": 495,
+        "Top": 41,
+        "Right": 542,
+        "Bottom": 71,
+        "Width": 47,
+        "Height": 30
+      },
+      "nativeSizeMatched": true,
+      "pixelGlyph": {
+        "Changed": 79,
+        "Pixels": 1410,
+        "MeanDifference": 8.75177304964539
+      },
+      "pixelHover": {
+        "Changed": 1338,
+        "Pixels": 1410,
+        "MeanDifference": 21.295035460992906
+      },
+      "stableSamples": 8,
+      "hitPoints": 5,
+      "screenshots": [
+        "WinForms-fixture-restored-narrow-baseline.png",
+        "WinForms-fixture-restored-narrow-normal.png",
+        "WinForms-fixture-restored-narrow-hover.png"
+      ]
+    }
+  ]
+}

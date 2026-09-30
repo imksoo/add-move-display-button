@@ -2,15 +2,15 @@
 
 ## 目的と対象
 
-v0.1.6の配布用EXEを実際に起動し、Notepad、Explorer、タスクスケジューラ、Microsoft Store、電卓のタイトルバー上で検査する。WPFとWinFormsには別途、明示的にfixtureと名付けた最小の検証用アプリを使う。fixtureの成功を市販アプリやWinUI/UWPの成功として扱わない。
+同じコミットからMSVCと公式SDKでビルドしたx64 EXEを実際に起動し、Notepad、Explorer、Chrome、タスクスケジューラ、Microsoft Store、電卓のタイトルバー上で検査する。WPFとWinFormsには別途、明示的にfixtureと名付けた最小の検証用アプリを使う。fixtureの成功を市販アプリやWinUI/UWPの成功として扱わない。
 
-この変更は試験のみ。製品の配置条件、描画、移動処理、版番号は変更しない。
+環境の診断・修復と検証履歴は[Windows 11 Arm診断](WINDOWS11-DESKTOP-DIAGNOSIS.md)に記録する。
 
 ## 環境の成立を先に確認
 
 `Test-DesktopReadiness.ps1`は自分の検証用ウィンドウを2色に描き、画面上の実画素が両方とも一致することを確認する。Foreground HWNDやUserInteractiveが正しくても、画面取得結果が実アプリと一致しないランナーがあるため、これらのAPI値だけでは合格にしない。
 
-この前提が不成立なら`desktop-readiness.json`に`environment-blocked`を記録し、ジョブを失敗させ、アプリ試験を行わない。「環境不成立」を製品の不合格や合格へ読み替えない。初回セットアップの回避として試したポリシー変更は問題を解消しなかったため撤去した。最終的な試験はレジストリ、セキュリティ設定、Windowsの初回設定を変更せず、デスクトップ切り替えやサインイン回避も行わない。
+この前提が不成立なら`desktop-readiness.json`に`environment-blocked`を記録し、ジョブを失敗させ、アプリ試験を行わない。「環境不成立」を製品の不合格や合格へ読み替えない。preflight自体は設定を書き換えない。Windows 11 Armの使い捨てhosted runnerでは、その前に別の`Initialize-HostedDesktop.ps1`ステップでprivacy policyと入力の前提を準備する。製品試験用には署名とSHA-256を検証したWSL runtimeのみを導入し、初回更新Terminalを解消する。OneDrive同期をpolicyで抑止し、既存clientがあれば署名・パスを検証して終了を要求する。対象を検証したCloudExperienceHostだけにWM_CLOSEを送り、その成功とは別に同じjobで元の厳密な2色検査を要求する。製品やローカル試験がこの環境初期化を自動実行することはない。
 
 ## アプリの識別と観測
 
@@ -29,11 +29,11 @@ v0.1.6の配布用EXEを実際に起動し、Notepad、Explorer、タスクス�
 
 ## CIと再実行
 
-`.github/workflows/real-apps.yml`はMSVCと公式SDKで作った同じx64 EXEを、Windows Server 2022 x64とWindows 11 Arm64で実行する。後者はx64エミュレーションであり、Windows 11 x64ネイティブの試験ではない。ランナーのOS、アーキテクチャ、画像版、パッケージ版、EXEのSHA-256を成果物へ保存する。
+`.github/workflows/real-apps.yml`はMSVCと公式SDKで作った同じx64 EXEを、Windows Server 2022／2025 x64で実行する。`workflow_dispatch`の`include_windows11=true`、または`diagnose/desktop-*`からのPRではWindows 11 Arm64も実行する。後者はx64エミュレーションであり、Windows 11 x64ネイティブの試験ではない。ランナーのOS、アーキテクチャ、画像版、パッケージ版、EXEのSHA-256を成果物へ保存する。
 
 テスト対象の作業領域は1モニターで、`--show-on-single-monitor`を使用する。物理的な画面間移動、異なる実モニターの混在DPI、長時間負荷、全テーマの網羅試験ではない。CIは管理者環境なので、通常ユーザーと昇格アプリの権限差も別途検証が必要。
 
-成果物は`real-app-evidence-windows-2022`と`real-app-evidence-windows-11-arm`。結果JSONとスクリーンショットを14日保持する。アプリが未インストールの場合は`unavailable`、起動後の失敗は`failed`。欠測を合格へ置き換えない。
+成果物は`real-app-evidence-windows-2022`、`real-app-evidence-windows-2025`と`real-app-evidence-windows-11-arm`。結果JSONとスクリーンショットを14日保持する。アプリが未インストールの場合は`unavailable`、起動後の失敗は`failed`。欠測を合格へ置き換えない。Windows 11の`-RequireWindows11Coverage`は現行Notepad・Explorer・Store・電卓の各3状態、計12条件すべてを必須とする。
 
 ローカルの使い捨てWindows検証環境では、Windows PowerShell 5.1で次を実行する。自分の普段のデスクトップや機密画面があるセッションでは実行しない。起動中の本ツールがあれば、試験は開始を拒否する。
 
@@ -43,6 +43,12 @@ v0.1.6の配布用EXEを実際に起動し、Notepad、Explorer、タスクス�
 ```
 
 前段が失敗した場合は後段を実行しない。試験の目的で起動したウィンドウだけをWM_CLOSEで閉じ、Explorerプロセスや無関係なアプリを停止しない。
+
+## 2026-09-30 Windows 11 Armでの修復後の結果
+
+[run 36668291468](https://github.com/imksoo/add-move-display-button/actions/runs/36668291468)の同じArm jobで、厳密なpreflight、Notepad・Explorer・Store・電卓の必須12条件を含む24/24ケース、非アクティブ操作試験が合格した。必須12条件のnormal/hover計24枚を目視確認し、記号とホバー表示、既存caption操作部を覆わないことを確認した。[コミット・EXE hash・画像・JSON](WINDOWS11-DESKTOP-DIAGNOSIS.md#verified-arm-result)を保存している。公開済みv0.1.8の資産を遡って合格とするものではない。
+
+両Serverの製品試験も合格したが、このrun全体では別のSDK Debug caption試験が失敗した。後続のPRチェックでfixture修正を検証する。以下は修復前の歴史的な記録である。
 
 ## 2026-09-27時点で観測した結果
 
@@ -61,3 +67,4 @@ v0.1.6の配布用EXEを実際に起動し、Notepad、Explorer、タスクス�
 Windows 11の画像`20260920.164.1`（Enterprise build26200、Arm64）にはNotepad11.2605.34.0、Microsoft Store22506.1400.2.0、電卓11.2502.2.0がインストールされていた。しかしスクリーンショットには実アプリではなく初回のプライバシー設定画面が写り、既知色のsentinelも画面上で確認できなかった。観測と表示の不一致の根本原因は未確定。これらのWindows 11アプリの描画を合格とも製品不具合とも判定していない。
 
 Windows 11の実画面を検証できる環境が成立するまで、同ジョブは赤のまま残す。合格に見せるためのcontinue-on-errorや画素検査の無効化は行わない。
+

@@ -1,8 +1,79 @@
 # Windows 11 Arm screen-capture diagnosis (Issue #2)
 
-This change instruments the desktop preflight. It changes no product code or Windows settings.
+The read-only preflight and its original exact-pixel gate are preserved. The repair adds a separate, explicitly guarded provisioning step for disposable GitHub-hosted Windows 11 Arm machines. It also repairs the real-app harness and an independently observed inactive-hover defect. It does not change configuration on product users' machines.
 
-## 2026-09-30 再検証：直接原因と未確定部分
+## Repair and validation (2026-09-30)
+
+The blocking UI is Windows CloudExperienceHost, not an inaccessible session or a broken GetPixel conversion. The earlier evidence below is retained as the diagnosis history; its “blocked/not started” status describes those earlier runs.
+
+1. `Initialize-HostedDesktop.ps1` checks GitHub-hosted provenance, the Windows 11 Arm image label and client OS. It records the existing policy values, applies explicit privacy policies, and reads them back. Optional collection/location/advertising/personalization are disabled; diagnostic data is required-only. `DisablePrivacyExperience` suppresses the first-logon prompt for this disposable test account.
+2. `HostedDesktopSetup.cs` identifies the visible, uncloaked `Microsoft account` CoreWindow by HWND, PID, session, process start time, the system `WWAHost.exe` path and `Microsoft.Windows.CloudExperienceHost_` package identity. It revalidates that identity before sending `WM_CLOSE`. It refuses an unknown/changed host and fails if the verified host does not close; no process termination fallback remains. The policy/UI transition is logged separately from the preflight.
+3. Closing that UI alone exposed a second precondition: SearchHost retained foreground. A small, owned setup window receives one checked input click and grants normal `AllowSetForegroundWindow` permission. Input is sent only after checking the input desktop and verifying that the exact point belongs to the setup window; the window is disposed and the cursor restored. This is setup, never pixel evidence.
+4. The same job then runs the unchanged two-color gate, including exact GetPixel/BitBlt RGB, foreground before/after, paint phase and active input context. The isolated diagnostic VM's success cannot substitute for the product VM's preflight.
+5. Real-app discovery includes top-level CoreWindows using bounded `FindWindowEx` enumeration, because `EnumWindows` documents desktop-app-only enumeration on Windows 8+. Package identity, uncloaked/visible state, non-child style and a stable newly visible HWND are still required. A package-verified frame that existed only as a cloaked placeholder may become the target on the disposable hosted runner; an already-visible frame is refused. Each Windows 11 case obtains foreground permission before its baseline. The existing 12-second overlay startup deadline now requires a stable HWND/bounds before observation; the five hit points, eight steady-state samples, geometry, screen-pixel glyph/hover and shutdown checks remain mandatory. Failed foreground/hit-point identities and failed launch inventories are saved.
+6. A separate x64 integration failure blocked building the EXE: after press cancellation, the cursor was inside the inactive button, capture was released and bounds/foreground stayed correct, but the button retained the normal RGB instead of the original hover RGB for the entire three seconds. Refresh now reconciles the hover state with the current cursor and actual hit window after placement probing. The test still requires the same three consecutive exact RGB matches within the same 30 × 100 ms budget. The exact prior mouse-message ordering was not traced and is not claimed.
+
+No DXGI replacement, offscreen rendering, tolerance increase, extra preflight wait, `continue-on-error`, or late-sample rescue was introduced. A future image with different setup UI fails the original gate instead of being declared ready.
+
+### Intermediate evidence
+
+- [36663572254](https://github.com/imksoo/add-move-display-button/actions/runs/36663572254): policy + verified `WM_CLOSE` removed the privacy screen; both original colors matched, but foreground remained SearchHost, so preflight correctly **failed**.
+- [36664002389](https://github.com/imksoo/add-move-display-button/actions/runs/36664002389): adding owned-window input/foreground delegation made the Arm isolated and product-job preflights **pass**, with the original colors and all added context checks. Notepad, Explorer and Store passed all three states. Calculator discovery, other foreground cases and one initial Chrome hit test still failed; this was **not** a complete product pass. The x64 Release/Debug and both Server product suites passed; the formatting job failed and was corrected in the next commit.
+- Earlier UI Automation experiments found no exposed child controls under the observed setup root. They were removed; the repair does not guess screen coordinates for privacy buttons or claim that all UI Automation is unavailable.
+
+- [36664706996](https://github.com/imksoo/add-move-display-button/actions/runs/36664706996): Arm preflight passed again and foreground setup enabled MMC/WinForms observations. Full product success was still not established: Calculator was visibly running in ApplicationFrameHost but was not identified, and several cases lost foreground/stability. That evidence led to child-CoreWindow discovery and additional failure snapshots; no failed case was promoted to passed.
+
+- [36665375215](https://github.com/imksoo/add-move-display-button/actions/runs/36665375215): the new failure snapshots identify **WindowsTerminal displaying `wsl.exe`'s interactive update prompt** as foreground during all three runtime foreground/stability failures. Active-window tracking was off. The product correctly stopped showing its active overlay when another window took foreground; relaxing that check would have hidden an environment failure. [Result excerpts](evidence/issue-2-36665375215/results-excerpt.json), [failure screen](evidence/issue-2-36665375215/MicrosoftStore-normal-failure.png), [frame excerpts](evidence/issue-2-36665375215/calculator-frames-excerpt.json), and [artifact manifest](evidence/issue-2-36665375215/manifest.json) are retained. The Calculator frame contains the correct package-owned child; child discovery alone was insufficient. The next change also handles activation of pre-created cloaked frames on the disposable hosted runner, while refusing already-visible windows. Both Server product suites passed. SDK Release separately failed an existing caption visibility check; that run is not reported as an all-green regression run.
+
+For product jobs, provisioning installs the **runtime only** from Microsoft's official Arm64 WSL 3.0.1 MSI. Its release asset SHA-256 is pinned (`857ddbb335ec7d05ffa71d0fd2203750c0e8fc29bb164f8a95db92bd7bba4263`) and the Microsoft Authenticode signature must validate before execution. The MSI runs quietly with `/norestart`; its exit code and the noninteractive `wsl --version` result are retained. Installer result 3010 is recorded as a runtime install requiring reboot, not as proof that Linux VMs work; version-query success and every desktop test are still independently required. No Linux distribution is installed, no optional virtualization feature is enabled by the script, and no reboot is requested. Existing 60-second bootstrap prompts must expire before foreground setup/preflight. Terminal windows are never dismissed during product observations. This preparation is conditional on `-PrepareApplicationTests`; isolated preflight still tests the minimal privacy/input repair. See [Microsoft's MSI installation instructions](https://learn.microsoft.com/en-us/windows/wsl/install#offline-install) and [official release](https://github.com/microsoft/WSL/releases/tag/3.0.1).
+
+- [36666140679](https://github.com/imksoo/add-move-display-button/actions/runs/36666140679): the initial WSL `--update` attempt failed closed because the inbox launcher reported that WSL itself was absent. The preparation command was corrected to install the runtime without a distribution, and direct process handles/raw stdout-stderr capture replace PowerShell's missing exit-code result.
+
+- [36666467005](https://github.com/imksoo/add-move-display-button/actions/runs/36666467005): the inbox launcher also rejected `--install --no-distribution --web-download` with “not installed.” Its recorded bootstrap process was `wsl.exe --update --confirm --prompt-before-exit`. Preparation was changed to the official verified MSI, and extraneous void-task output was suppressed so command exit status is a scalar. This failed preparation never reached preflight or product observations.
+
+- [36666847586](https://github.com/imksoo/add-move-display-button/actions/runs/36666847586): PowerShell's installer download stalled; this run was cancelled before the Arm product tests. Native curl with a bounded deadline replaced that download. Server 2022 independently exposed a topmost-band error in the inactive button: inserting after a topmost HWND promoted an ordinary button back into the topmost band. The repair uses [HWND_TOP at that boundary](https://devblogs.microsoft.com/oldnewthing/20170914-00/?p=97025) and adds an unrelated topmost neighbor to the existing demotion regression, preserving its assertion and timeout.
+
+- [36667375257](https://github.com/imksoo/add-move-display-button/actions/runs/36667375257): WSL MSI download/install/version queries all returned 0, the signature was valid, and the same Arm product job passed strict preflight plus **all 12 required modern-app cases**. The Calculator launch inventory confirms a pre-created, cloaked ApplicationFrameWindow. All 24 normal/hover PNGs for the 12 required cases were reviewed: monitor glyph visible, hover shading present, and native caption controls unobscured. Overall Arm result was still failed: Chrome normal lost foreground to OneDrive's first-sign-in host (OneDriveReactNativeWin32WindowClass). This is retained as a failed run, not a full-suite pass. [Selected results and OneDrive foreground evidence](evidence/issue-2-36667375257/results-excerpt.json) and the raw [Calculator launch-before inventory](evidence/issue-2-36667375257/Calculator-launch-before.json) are retained.
+
+Product-job provisioning now also applies DisableFileSyncNGSC on the disposable test account. Any existing same-session OneDrive process must use a standard installation path and a valid Microsoft Authenticode signature before its own /shutdown command is invoked. The script requires a zero exit code and no remaining same-session OneDrive process. It never terminates arbitrary processes or dismisses windows during product observations. OneDrive synchronization is outside this fixture's coverage.
+
+- [36668291468](https://github.com/imksoo/add-move-display-button/actions/runs/36668291468): SDK Debug independently failed the existing caption visibility check; SDK Release and the actual EXE build passed, including the strengthened inactive topmost-neighbor regression. The caption fixture used Sleep(10) while its UI thread was the target of the EXE's 20 ms synchronous probes. Its pump now wakes on sent messages with [MsgWaitForMultipleObjectsEx](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-msgwaitformultipleobjectsex), preserving all deadlines and assertions. This fixes a concrete fixture responsiveness risk; the failed run did not record enough state to prove that scheduling was its sole cause. A hidden-overlay failure now records fixture/foreground HWND, PID and class. The Arm job and both Server product jobs passed. This run still failed overall because of SDK Debug; it is not described as an all-green workflow.
+
+### Verified Arm result
+
+Run [36668291468](https://github.com/imksoo/add-move-display-button/actions/runs/36668291468), attempt 1, Arm job `109737854758`, completed successfully. PR head `45da8a6945e95421a0e8b17118e177445eaa13a4`; tested merge commit `7d3311bf76a8a6d356588c8dad7ab3ffc6aa1024`. The same job completed provisioning, the original strict preflight, **24/24 real-app/framework cases**, and the actual-EXE inactive-window/first-click suite. All **12/12 required modern-app cases** passed without unavailable/skipped cases. Each passed all five input points, eight steady-state samples, geometry, screen-pixel glyph/hover, responsiveness and clean shutdown.
+
+The downloaded x64 EXE SHA-256 was independently recomputed and matched the build metadata, real-app results and inactive results: `fe29dbeeebe540e054d54044d6cbabddd241ecc7b09c8ad67dcdaf18268e92f4`. This is a branch-built EXE with version metadata 0.1.8, not the previously published release asset.
+
+| App / observed version | Normal | Maximized | Restored narrow |
+|---|---|---|---|
+| Notepad 11.2605.34.0 | PASS | PASS | PASS |
+| Explorer 10.0.26100.8117 | PASS | PASS | PASS |
+| Microsoft Store 22506.1400.2.0 | PASS | PASS | PASS |
+| Calculator 11.2502.2.0 | PASS | PASS | PASS |
+
+Environment: Windows 11 Enterprise build 26200, native Arm64 host / x64 product emulation, image `win11-vs2026-arm64` / `20260920.164.1`. Preflight observed Session 2 / WTSActive / visible WinSta0 / Default input desktop; each phase had the sentinel as foreground and point owner, with exact GetPixel and BitBlt matches. No late observations were needed. WSL download/install/version queries all exited 0. OneDrive was absent after policy application in this run, so its guarded `/shutdown` branch was not exercised.
+
+Durable evidence: [complete results](evidence/issue-2-36668291468/results.json), [preflight context and pixels](evidence/issue-2-36668291468/desktop-diagnostic.json), [provisioning report](evidence/issue-2-36668291468/desktop-setup/desktop-setup.json), [inactive result](evidence/issue-2-36668291468/inactive-result.json), [image review](evidence/issue-2-36668291468/image-review.json), and [source IDs and hashes](evidence/issue-2-36668291468/manifest.json). The directory preserves the baseline/normal/hover PNGs for all 12 required cases. All 24 normal/hover images were visually reviewed: visible monitor glyph, hover shading and unobscured native caption controls. Results JSON retains every field and case with normalized whitespace; other listed artifact files preserve their original bytes, including UTF-16 where produced by Windows PowerShell.
+
+Both Server product jobs passed in this run. SDK Debug's separate caption check remained failed; the fixture responsiveness change above is validated by the subsequent PR checks. Issue #2 remains open pending integration/review; no release asset was overwritten.
+
+### Scope
+
+The product is still the actual x64 EXE running under Windows 11 Arm emulation. These are single-monitor display, placement, input and screen-pixel tests. They do not validate physical monitor movement, native Arm64 product compilation or mixed-DPI hardware. Server success does not establish modern packaged-app compatibility.
+
+### Provisioning API references
+
+- [Privacy policy CSP](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-privacy): administrative first-logon privacy policy, location and advertising policy mappings.
+- [Experience policy CSP](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-experience): Find My Device and diagnostic-data personalization.
+- [TextInput policy CSP](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-textinput): linguistic data collection.
+- [System policy CSP](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-system): required-only diagnostic data and DisableOneDriveFileSync policy mapping.
+- [AllowSetForegroundWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-allowsetforegroundwindow): foreground permission lasts only until subsequent user input; it is not an unconditional activation override.
+- [EnumWindows](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-enumwindows), [FindWindowEx](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-findwindowexw): top-level discovery and the desktop-app enumeration restriction.
+
+## Historical diagnosis before provisioning
+
+### 2026-09-30 再検証：修復前の記録
 
 起点の[Issue #2](https://github.com/imksoo/add-move-display-button/issues/2)はopen、コメント0。[PR #3](https://github.com/imksoo/add-move-display-button/pull/3)と[PR #4](https://github.com/imksoo/add-move-display-button/pull/4)は9月27日merge済み、[v0.1.8](https://github.com/imksoo/add-move-display-button/releases/tag/v0.1.8)も公開済み。この公開はWindows 11 Armの合格を意味しない。
 
@@ -43,7 +114,7 @@ Windows 11 Armでは、初回privacy設定UIがsentinelを覆い、前面と採�
 
 ### 診断以外のCI失敗
 
-最初のrun [36657232424](https://github.com/imksoo/add-move-display-button/actions/runs/36657232424)では変更していないinactive_overlay試験が `stableHoverSamples == 3` で失敗し、build依存のArmジョブがskipされた。このため製品EXEを必要としない診断だけを独立させた。run 36657431081でもSDK Releaseジョブ `109704681933` の同じチェックが失敗している。必須製品試験や公開ゲートは維持し、リトライで失敗履歴を隠していない。このPRは診断用draftであり、これらの失敗を直した／製品試験全体が合格したとは扱わない。
+最初のrun [36657232424](https://github.com/imksoo/add-move-display-button/actions/runs/36657232424)では変更していないinactive_overlay試験が `stableHoverSamples == 3` で失敗し、build依存のArmジョブがskipされた。このため製品EXEを必要としない診断だけを独立させた。run 36657431081でもSDK Releaseジョブ `109704681933` の同じチェックが失敗している。必須製品試験や公開ゲートは維持し、リトライで失敗履歴を隠していない。この時点のPRは診断用draftで、製品試験全体は未合格だった。後続の修復・検証は冒頭の履歴を参照。
 
 ### 別runによる再現確認
 
@@ -69,7 +140,7 @@ Windows 11 Armでは、初回privacy設定UIがsentinelを覆い、前面と採�
 | GetPixel固有の不整合 | 同一screen DC・対応座標のraw COLORREFとBitBlt PNGのRGB | 両者が一致してprivacy UIを取得。GetPixelだけの問題を支持しない |
 | Hosted desktopのcomposition / driver | 遮蔽物なし・context一致でもGDIだけが更新しない場合、独立したmonitor-level DXGI取得を追加 | 両APIともGDIなので全composition問題の不存在は証明できない。今回は遮蔽で説明でき、DXGIは次段階に留める |
 
-必要な実行時変更は3ファイルに限定した。
+初期の診断追加は次の3ファイルに限定した。上記の修復変更は、その診断結果に基づく別段階である。
 
 1. `tests/desktop/DesktopReadiness.cs`: 既存sentinel処理を抽出し、上記context/window/paint/同一座標RGBを追記。失敗時だけ全画面・window inventory・期限付き追加観測を保存する。
 2. `tools/Test-DesktopReadiness.ps1`: プローブをロードし、元の2色完全一致・失敗exitを保持。元判定と診断追加条件を別項目で記録する。
@@ -82,7 +153,7 @@ Windows 11 Armでは、初回privacy設定UIがsentinelを覆い、前面と採�
 - Preserve the original two colors, original 20 x 50ms message-pump wait for each color, exact RGB comparison, and failing exit code.
 - Save the original verdict before any late observations. Late success never promotes the run to ready.
 - Additionally require the product's screen BitBlt path to match, the sentinel to be foreground before/after capture, and an active consistent input desktop.
-- Read only: no desktop switching, registry changes, privacy consent dismissal, sign-in changes, token elevation, or termination of unrelated processes.
+- The **preflight** remains read only: no desktop switching, registry changes, privacy UI dismissal, sign-in changes, token elevation, or termination of unrelated processes. The separately named, guarded provisioning step above does apply policies and close the verified setup window before the gate.
 - Product tests execute only after successful preflight. A blocked environment is neither a product pass nor a product failure.
 
 ## Execution
@@ -115,16 +186,16 @@ Input desktop handles opened with DESKTOP_READOBJECTS are closed. Borrowed GetTh
 
 PrintWindow/DrawToBitmap are not screen proof. DwmFlush is not a session-wide flush. Neither can replace the screen-pixel gate. Access denied or unsupported DXGI is diagnostic data, never a pass.
 
-## Completion criteria
+## Completion criteria and verified status
 
 | 段階 | 合格条件 | 現状 |
 |---|---|---|
 | 診断 | 同一run・phaseでcontext、前面/採取点の所有者、paint、対応画素、画像が揃い、不一致の境界を説明できる | 2回のArm再現で直接的な遮蔽を確認 |
-| Preflight | 元の各20×50ms待機後、`#1161AD`と`#AD6111`が両方GetPixelとBitBltで完全一致。activeな同一input context、sentinelの前面・可視・非cloaked・該当paint phaseを確認し、追加観測に救済されず元判定がready | Armは未合格。Server対照の合格で代替しない |
-| Windows 11製品試験 | 合格したpreflightと**同じjob/desktop**で現行Notepad・Explorer・Store・Calculatorの通常/最大化/復元後12条件を実行。commit、image、パッケージversion、実EXE hashを記録し、既存geometry/pixel/hover/stability/shutdownと画像レビューを通す。unavailable/skipは合格に含めない | 未開始。独立preflightジョブの成功を別VMの製品ジョブへ流用しない |
-| Issue #2完了 | 上記Armのpreflightと12条件の証跡が揃う。物理複数モニター移動・混在DPIは別coverageとして明記 | openを維持 |
+| Preflight | 元の各20×50ms待機後、`#1161AD`と`#AD6111`が両方GetPixelとBitBltで完全一致。activeな同一input context、sentinelの前面・可視・非cloaked・該当paint phaseを確認し、追加観測に救済されず元判定がready | Armの同一製品jobで合格（36668291468）。Server対照で代替していない |
+| Windows 11製品試験 | 合格したpreflightと**同じjob/desktop**で現行Notepad・Explorer・Store・Calculatorの通常/最大化/復元後12条件を実行。commit、image、パッケージversion、実EXE hashを記録し、既存geometry/pixel/hover/stability/shutdownと画像レビューを通す。unavailable/skipは合格に含めない | 同じArm jobで12/12合格、24枚のnormal/hover PNGを確認済み |
+| Issue #2完了 | 上記Armのpreflightと12条件の証跡が揃う。物理複数モニター移動・混在DPIは別coverageとして明記 | 技術的条件を満たす証跡を保存済み。PRの統合・レビュー待ちでIssueはopen |
 
-次の環境修復では、初回設定が完了した使い捨てWindows 11 Arm desktopを用意し、同じプローブで前面/採取点がsentinelへ変わり両色が一致することを確認する。UIが消えたことだけでは合格にしない。UIが消えてもGDIが更新しない場合に限りDXGIのadapter/output、HRESULT、frame時刻を追加し、compositionの調査へ進む。
+今回の修復では、準備後の同じプローブで前面/採取点がsentinelへ変わり両色が一致した。今後のimageでも、UIが消えたことだけでは合格にしない。UIが消えてもGDIが更新しない場合に限りDXGIのadapter/output、HRESULT、frame時刻を追加し、compositionの調査へ進む。
 
 ## API仕様の根拠
 
