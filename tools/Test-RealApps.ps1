@@ -1,8 +1,9 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$ExecutablePath,
     [string]$OutputDirectory = 'real-app-evidence',
-    [switch]$AllowDesktopCapture
+    [switch]$AllowDesktopCapture,
+    [switch]$RequireWindows11Coverage
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -214,6 +215,12 @@ $specs = @(
 try {
     Require ([Environment]::UserInteractive) 'No interactive desktop.'
     Save-Evidence
+    if ($RequireWindows11Coverage) {
+        Require ($os.ProductType -eq 1 -and [int]$os.BuildNumber -ge 22000) 'Windows 11 client required for modern-app coverage.'
+        foreach ($required in @('Microsoft.WindowsNotepad','Microsoft.WindowsStore','Microsoft.WindowsCalculator')) {
+            Require (@($packages | Where-Object Name -eq $required).Count -gt 0) "Required modern package missing: $required"
+        }
+    }
     foreach ($spec in $specs) {
         $launched = $null; $target = $null
         if ($spec.Kind -eq 'Package' -and @($packages | Where-Object Name -eq $spec.Package).Count -eq 0) {
@@ -283,3 +290,11 @@ finally {
 }
 $failures = @($evidence.cases | Where-Object status -eq 'failed')
 Require ($failures.Count -eq 0) "$($failures.Count) real-app test cases failed. See results.json and screenshots."
+if ($RequireWindows11Coverage) {
+    foreach ($required in @('Notepad','Explorer','MicrosoftStore','Calculator')) {
+        foreach ($mode in @('normal','maximized','restored-narrow')) {
+            $matched=@($evidence.cases | Where-Object { $_.app -eq $required -and $_.state -eq $mode -and $_.status -eq 'passed' })
+            Require ($matched.Count -eq 1) "Required Windows 11 coverage missing: $required / $mode"
+        }
+    }
+}

@@ -100,6 +100,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - name: Complete first-logon privacy setup on the disposable Arm runner
+        if: matrix.os == 'windows-11-arm'
+        timeout-minutes: 3
+        shell: powershell
+        run: ./tools/Initialize-HostedDesktop.ps1 -OutputDirectory desktop-preflight-evidence/desktop-setup
       - name: Observe desktop context and exact sentinel pixels
         timeout-minutes: 3
         shell: powershell
@@ -113,8 +118,8 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
   windows11-diagnostic:
-    name: Windows 11 Arm diagnostic (coverage not established)
-    if: github.event_name == 'workflow_dispatch' && inputs.include_windows11
+    name: Windows 11 Arm prepared desktop and real apps
+    if: (github.event_name == 'workflow_dispatch' && inputs.include_windows11) || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'diagnose/desktop-'))
     needs: build
     runs-on: windows-11-arm
     timeout-minutes: 20
@@ -126,13 +131,17 @@ jobs:
         with:
           name: real-app-test-executable
           path: app-under-test
+      - name: Complete first-logon privacy setup on the disposable Windows 11 runner
+        timeout-minutes: 3
+        shell: powershell
+        run: ./tools/Initialize-HostedDesktop.ps1 -OutputDirectory real-app-evidence/desktop-setup
       - name: Verify visible desktop pixels without changing Windows settings
         timeout-minutes: 3
         shell: powershell
         run: ./tools/Test-DesktopReadiness.ps1 -OutputDirectory real-app-evidence
       - name: Test real application caption pixels, geometry, hover, and stability
         shell: powershell
-        run: ./tools/Test-RealApps.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -OutputDirectory real-app-evidence
+        run: ./tools/Test-RealApps.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -OutputDirectory real-app-evidence -RequireWindows11Coverage
       - name: Test the actual EXE on inactive windows and first-click menus
         shell: powershell
         run: ./tools/Test-InactiveWindows.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -TestPath app-under-test/test-programs/inactive_overlay_test.exe -OutputDirectory real-app-evidence
@@ -224,4 +233,3 @@ jobs:
           gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest
           echo "### Release published: $tag" >> "$GITHUB_STEP_SUMMARY"
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
-
