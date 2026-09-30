@@ -78,7 +78,11 @@ try {
         $expectedHash='857ddbb335ec7d05ffa71d0fd2203750c0e8fc29bb164f8a95db92bd7bba4263'
         $installer=Join-Path ([IO.Path]::GetTempPath()) 'mtmb-ci-wsl.3.0.1.0.arm64.msi'
         $report.wsl['installer']=$uri; Save-Setup
-        Invoke-WebRequest -UseBasicParsing -Uri $uri -OutFile $installer -TimeoutSec 120
+        $curl=Join-Path $env:SystemRoot 'System32/curl.exe'
+        $downloadArgs='--fail --location --silent --show-error --max-time 120 --output "'+$installer+'" "'+$uri+'"'
+        $report.wsl['downloadExit']=Invoke-OwnedCommand $curl $downloadArgs 'wsl-download' 130000
+        Save-Setup
+        if ($report.wsl.downloadExit -ne 0) { throw 'WSL runtime download failed; see captured output.' }
         try {
             $digest=(Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
             $signature=Get-AuthenticodeSignature -LiteralPath $installer
