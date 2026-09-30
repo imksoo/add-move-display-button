@@ -217,8 +217,8 @@ void InactiveButtons::update(Button& button) {
     // state stale without another WM_MOUSEMOVE. Reconcile after hit-test probing
     // has finished; only our own visible popup may become hovered.
     POINT cursor{};
-    const bool hovered = GetCursorPos(&cursor) && PtInRect(&bounds, cursor) &&
-                         WindowFromPoint(cursor) == hwnd;
+    const bool hovered =
+        GetCursorPos(&cursor) && PtInRect(&bounds, cursor) && WindowFromPoint(cursor) == hwnd;
     if (button.hover != hovered) {
         button.hover = hovered;
         if (hovered) {

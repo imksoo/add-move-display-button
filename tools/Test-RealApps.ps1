@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$ExecutablePath,
     [string]$OutputDirectory = 'real-app-evidence',
@@ -19,6 +19,10 @@ if (@(Get-Process -Name MoveToMonitorButton -ErrorAction SilentlyContinue).Count
 }
 $probe = Join-Path $PSScriptRoot '../tests/desktop/DesktopProbe.cs'
 Add-Type -Path $probe -ReferencedAssemblies System.Drawing.dll
+if ($RequireWindows11Coverage) {
+    if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Hosted input setup is restricted to disposable GitHub runners.' }
+    Add-Type -Path (Join-Path $PSScriptRoot '../tests/desktop/HostedDesktopSetup.cs') -ReferencedAssemblies System.dll,System.Drawing.dll,System.Windows.Forms.dll
+}
 [DesktopProbe]::PhysicalCoordinates()
 $work = [DesktopProbe]::WorkArea()
 $chromeProfile = Join-Path ([IO.Path]::GetTempPath()) ('mtmb-chrome-'+[guid]::NewGuid().ToString('N'))
@@ -63,7 +67,7 @@ function Get-NewTarget($before,$spec,$launched) {
     $last = 0L; $stable = 0
     do {
         $selected = $null
-        $candidates = @([DesktopProbe]::Windows() | Where-Object { $_.Visible -and $_.Bounds.Width -gt 250 -and $_.Bounds.Height -gt 100 -and $before -notcontains $_.Handle })
+        $candidates = @([DesktopProbe]::Windows() | Where-Object { $_.Visible -and $_.Cloaked -eq 0 -and $_.Bounds.Width -gt 250 -and $_.Bounds.Height -gt 100 -and $before -notcontains $_.Handle })
         foreach ($w in $candidates) {
             $match = $false
             if ($spec.Kind -eq 'Framework' -and $w.Pid -eq $launched.Id) {
@@ -97,7 +101,7 @@ function Get-NewTarget($before,$spec,$launched) {
 }
 function Test-WindowState($spec,$target,[string]$mode) {
     $hwnd = [IntPtr]$target.Handle
-    $result = [ordered]@{ app=$spec.Name; kind=$spec.Kind; state=$mode; status='failed'; reason=$null; window=$target; caption=$null; overlay=$null; nativeSizeMatched=$null; pixelGlyph=$null; pixelHover=$null; stableSamples=0; hitPoints=0; screenshots=@() }
+    $result = [ordered]@{ app=$spec.Name; kind=$spec.Kind; state=$mode; status='failed'; reason=$null; window=$target; caption=$null; overlay=$null; nativeSizeMatched=$null; pixelGlyph=$null; pixelHover=$null; stableSamples=0; hitPoints=0; screenshots=@(); focusSetup=$null; foreground=$null; hitObservations=@() }
     $app = $null
     try {
         Require ([DesktopProbe]::IsWindow($hwnd)) 'Identified target window no longer exists.'
@@ -110,11 +114,13 @@ function Test-WindowState($spec,$target,[string]$mode) {
         }
         Start-Sleep -Milliseconds 650
         $null = [DesktopProbe]::SetCursorPos($work.Left+10,$work.Bottom-50)
+        if ($RequireWindows11Coverage) { $result.focusSetup=[HostedDesktopSetup]::InitializeInput() }
         for ($focusAttempt=0;$focusAttempt -lt 5;$focusAttempt++) {
             $null = [DesktopProbe]::SetForegroundWindow($hwnd)
             Start-Sleep -Milliseconds 350
             if ([DesktopProbe]::GetForegroundWindow() -eq $hwnd) { break }
         }
+        $result.foreground=[DesktopProbe]::Describe([DesktopProbe]::GetForegroundWindow())
         Require ([DesktopProbe]::GetForegroundWindow() -eq $hwnd) 'Test cannot obtain target foreground; not an overlay verdict.'
         Require ([DesktopProbe]::IsZoomed($hwnd) -eq ($mode -eq 'maximized')) 'Target did not reach the requested window state.'
         $caption = [DesktopProbe]::Caption($hwnd)
@@ -127,13 +133,18 @@ function Test-WindowState($spec,$target,[string]$mode) {
         $result.screenshots += [IO.Path]::GetFileName($baseline)
         $app = Start-Process -FilePath $exe -ArgumentList '--show-on-single-monitor' -PassThru
         $deadline = [DateTime]::UtcNow.AddSeconds(12)
-        $overlay = $null
+        $overlay = $null; $candidate = $null; $settled = 0
         do {
             Start-Sleep -Milliseconds 250
             $app.Refresh()
             Require (-not $app.HasExited) 'Utility exited while waiting for the overlay.'
             $found = @([DesktopProbe]::Windows() | Where-Object { $_.Pid -eq $app.Id -and $_.Class -eq 'MoveToMonitorButton.Overlay.v1' -and $_.Visible })
-            if ($found.Count) { $overlay = $found[0]; break }
+            if ($found.Count) {
+                $current=$found[0]
+                if ($null -ne $candidate -and $candidate.Handle -eq $current.Handle -and $candidate.Bounds.Same($current.Bounds)) { $settled++ } else { $settled=0 }
+                $candidate=$current
+                if ($settled -ge 2) { $overlay=$current; break }
+            } else { $candidate=$null; $settled=0 }
         } while ([DateTime]::UtcNow -lt $deadline)
         $null = [DesktopProbe]::CaptureCaption($hwnd,$normal)
         $result.screenshots += [IO.Path]::GetFileName($normal)
@@ -163,7 +174,9 @@ function Test-WindowState($spec,$target,[string]$mode) {
             [DesktopProbe+Point]::new(($bounds.Left+[int]($bounds.Width/2)),($bounds.Top+[int]($bounds.Height/2)))
         )
         foreach ($point in $points) {
-            Require ([DesktopProbe]::WindowFromPoint($point) -eq $oh) 'Overlay has a click-through hole or is occluded.'
+            $hitWindow=[DesktopProbe]::WindowFromPoint($point)
+            $result.hitObservations += [pscustomobject]@{ point=$point; window=[DesktopProbe]::Describe($hitWindow); overlayBounds=[DesktopProbe]::Bounds($oh) }
+            Require ($hitWindow -eq $oh) 'Overlay has a click-through hole or is occluded.'
             Require ([DesktopProbe]::Hit($oh,$point.X,$point.Y) -eq 1) 'Overlay does not return HTCLIENT.'
             $result.hitPoints++
         }
@@ -264,6 +277,7 @@ try {
             $target = Get-NewTarget $before $spec $launched
             foreach ($mode in @('normal','maximized','restored-narrow')) { Test-WindowState $spec $target $mode }
         } catch {
+            [DesktopProbe]::Windows() | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $out "$($spec.Name)-launch-windows.json") -Encoding UTF8
             $evidence.cases.Add([pscustomobject]@{app=$spec.Name; kind=$spec.Kind; state='launch'; status='failed'; reason=$_.Exception.Message})
             Save-Evidence
             Write-Host "$($spec.Name) launch failed: $($_.Exception.Message)"

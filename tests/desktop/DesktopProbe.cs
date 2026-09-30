@@ -30,7 +30,7 @@ public static class DesktopProbe
     }
     public sealed class WindowInfo
     {
-        public long Handle; public int Pid; public string Class, Process, Version, Package;
+        public long Handle; public int Pid; public string Class, Process, Version, Package, Title; public uint Cloaked;
         public Rect Bounds; public bool Visible;
     }
     public sealed class CaptionInfo
@@ -42,7 +42,9 @@ public static class DesktopProbe
     }
     public sealed class PixelChange { public int Changed, Pixels; public double MeanDifference; }
     private delegate bool EnumProc(IntPtr hwnd, IntPtr context);
-    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumProc proc, IntPtr context);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string cls, string title);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int capacity);
+    [DllImport("dwmapi.dll", EntryPoint="DwmGetWindowAttribute")] private static extern int DwmValue(IntPtr hwnd, int attribute, out uint value, int size);
     [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr hwnd, EnumProc proc, IntPtr context);
     [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
@@ -84,6 +86,8 @@ public static class DesktopProbe
         uint pid; GetWindowThreadProcessId(hwnd, out pid);
         var r = new WindowInfo(); r.Handle = hwnd.ToInt64(); r.Pid = (int)pid;
         r.Class = ClassName(hwnd); r.Visible = IsWindowVisible(hwnd); GetWindowRect(hwnd, out r.Bounds);
+        var title=new StringBuilder(512); GetWindowText(hwnd,title,title.Capacity); r.Title=title.ToString();
+        DwmValue(hwnd,14,out r.Cloaked,4);
         try { using (var p = Process.GetProcessById((int)pid)) { r.Process = p.ProcessName; try { r.Version = p.MainModule.FileVersionInfo.FileVersion; } catch { } } } catch { r.Process = "unavailable"; }
         var handle = OpenProcess(0x1000, false, pid);
         if (handle != IntPtr.Zero) {
@@ -95,11 +99,12 @@ public static class DesktopProbe
     public static WindowInfo[] Windows()
     {
         var found = new List<WindowInfo>();
-        EnumWindows(delegate(IntPtr hwnd, IntPtr data) {
-            // A PowerShell process also owns a console. It is not its WPF/WinForms fixture.
-            if (ClassName(hwnd) != "ConsoleWindowClass") found.Add(Describe(hwnd));
-            return true;
-        }, IntPtr.Zero);
+        // EnumWindows excludes non-desktop CoreWindows on Windows 8+.
+        // Include packaged top-level windows without accepting child content as a frame.
+        var seen=new HashSet<IntPtr>(); IntPtr hwnd=IntPtr.Zero;
+        while ((hwnd=FindWindowEx(IntPtr.Zero,hwnd,null,null))!=IntPtr.Zero && seen.Add(hwnd) && seen.Count<=4096) {
+            if (ClassName(hwnd)!="ConsoleWindowClass") found.Add(Describe(hwnd));
+        }
         return found.ToArray();
     }
     public static CaptionInfo Caption(IntPtr hwnd)
@@ -167,3 +172,4 @@ public static class DesktopProbe
         return result;
     }
 }
+

@@ -69,13 +69,7 @@ public static class HostedDesktopSetup
             throw new InvalidOperationException("Setup host changed while applying policy.");
         if (!PostMessage(new IntPtr(current.Hwnd),0x0010,IntPtr.Zero,IntPtr.Zero)) throw new Win32Exception();
         for (int i=0;i<20;i++) { Thread.Sleep(100); if (Observe()==null) return "WM_CLOSE"; }
-        // The old setup instance can ignore WM_CLOSE. End only the verified PID
-        // after policy application, never every WWAHost or the user's Explorer.
-        using (var p=Process.GetProcessById(current.Pid)) {
-            if (p.StartTime.ToUniversalTime().Ticks!=current.StartTicks) throw new InvalidOperationException("PID reused.");
-            p.Kill(); if (!p.WaitForExit(5000)) throw new InvalidOperationException("Setup host did not exit.");
-        }
-        return "terminated-verified-setup-pid";
+        throw new InvalidOperationException("Verified setup host ignored WM_CLOSE; no process was terminated.");
     }
     public static void Capture(string path) {
         SetThreadDpiAwarenessContext(new IntPtr(-4));
@@ -102,7 +96,12 @@ public static class HostedDesktopSetup
                 if (!SetCursorPos(p.X,p.Y)) throw new Win32Exception();
                 if (GetAncestor(WindowFromPoint(p),2)!=form.Handle) throw new InvalidOperationException("Input target changed.");
                 var clicks=new[] {new Input {Mouse=new MouseInput {Flags=2}},new Input {Mouse=new MouseInput {Flags=4}}};
-                if (SendInput(2,clicks,Marshal.SizeOf(typeof(Input)))!=2) throw new Win32Exception();
+                uint sent=SendInput(2,clicks,Marshal.SizeOf(typeof(Input)));
+                if (sent!=2) {
+                    int error=Marshal.GetLastWin32Error();
+                    if (sent==1) SendInput(1,new[] {clicks[1]},Marshal.SizeOf(typeof(Input)));
+                    throw new Win32Exception(error);
+                }
                 for (int i=0;i<20;i++) { Application.DoEvents(); Thread.Sleep(25); }
                 if (GetForegroundWindow()!=form.Handle) throw new InvalidOperationException("Owned focus window did not receive foreground.");
                 // Normal Windows foreground delegation; valid only until subsequent user input.
