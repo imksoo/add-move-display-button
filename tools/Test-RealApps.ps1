@@ -249,7 +249,14 @@ try {
             continue
         }
         try {
-            $before = @([DesktopProbe]::Windows() | ForEach-Object Handle)
+            $beforeWindows=@([DesktopProbe]::Windows())
+            # UWP may reuse a pre-created, cloaked ApplicationFrameWindow. The
+            # hosted-only suite may accept a newly visible package-verified frame;
+            # a window already visible before our launch is never a test target.
+            if ($RequireWindows11Coverage) {
+                $before=@($beforeWindows | Where-Object { $_.Visible -and $_.Cloaked -eq 0 } | ForEach-Object Handle)
+                @($beforeWindows | Where-Object { $_.Class -eq 'ApplicationFrameWindow' -or ($null -ne $spec.Package -and $_.Package -like "$($spec.Package)_*") }) | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $out "$($spec.Name)-launch-before.json") -Encoding UTF8
+            } else { $before=@($beforeWindows | ForEach-Object Handle) }
             switch ($spec.Kind) {
                 'Chrome' {
                     Require ([bool]$chromePath) 'Google Chrome is required for this hosted desktop suite.'
@@ -278,7 +285,7 @@ try {
                 }
                 'Framework' {
                     $fixture = (Resolve-Path (Join-Path $PSScriptRoot '../tests/desktop/FrameworkFixture.ps1')).Path
-                    $launched = Start-Process (Join-Path $PSHOME 'powershell.exe') -ArgumentList ('-NoProfile -STA -File "'+$fixture+'" -Framework '+$spec.Framework) -PassThru
+                    $launched = Start-Process (Join-Path $PSHOME 'powershell.exe') -NoNewWindow -ArgumentList ('-NoProfile -STA -File "'+$fixture+'" -Framework '+$spec.Framework) -PassThru
                 }
             }
             $target = Get-NewTarget $before $spec $launched

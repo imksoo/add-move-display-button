@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$OutputDirectory='real-app-evidence/desktop-setup')
+param([string]$OutputDirectory='real-app-evidence/desktop-setup', [switch]$PrepareApplicationTests)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 # Environment provisioning is separate from the unmodified read-only pixel gate.
@@ -10,7 +10,7 @@ $os=Get-CimInstance Win32_OperatingSystem
 if ($os.ProductType -ne 1 -or [int]$os.BuildNumber -lt 22000) { throw 'Windows 11 client required.' }
 $out=[IO.Path]::GetFullPath($OutputDirectory)
 $null=New-Item -ItemType Directory -Force $out
-$report=[ordered]@{ stage='starting'; success=$false; image=$env:ImageOS; imageVersion=$env:ImageVersion; commit=$env:GITHUB_SHA; before=$null; after=$null; policies=@(); closeAction=$null; focusAction=$null; error=$null }
+$report=[ordered]@{ stage='starting'; success=$false; image=$env:ImageOS; imageVersion=$env:ImageVersion; commit=$env:GITHUB_SHA; before=$null; after=$null; policies=@(); closeAction=$null; focusAction=$null; wsl=$null; error=$null }
 function Save-Setup { $report | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $out 'desktop-setup.json') -Encoding UTF8 }
 function Set-PrivacyPolicy([string]$path,[string]$name,[int]$value) {
     $old=Get-ItemProperty -LiteralPath $path -Name $name -ErrorAction SilentlyContinue
@@ -47,6 +47,30 @@ try {
     for ($i=0;$i -lt 30;$i++) {
         Start-Sleep -Milliseconds 100
         if ($null -ne [HostedDesktopSetup]::Observe()) { throw 'Setup UI reappeared after policy application.' }
+    }
+    if ($PrepareApplicationTests) {
+        # This image's WSL bootstrap opens unsolicited update-prompt terminals.
+        # Repair the prerequisite before any product observation, never dismiss
+        # foreground windows or retry failed cases during the pixel tests.
+        $report.stage='wsl-prerequisite'; Save-Setup
+        $report.wsl=[ordered]@{ before=@(Get-CimInstance Win32_Process -Filter "Name='wsl.exe' OR Name='WindowsTerminal.exe'" | Select-Object Name,ProcessId,ParentProcessId,ExecutablePath,CommandLine); updateExit=$null; versionExit=$null }
+        Save-Setup
+        $wsl=Join-Path $env:SystemRoot 'System32/wsl.exe'
+        $update=Start-Process -FilePath $wsl -ArgumentList '--update --web-download' -NoNewWindow -PassThru -RedirectStandardOutput (Join-Path $out 'wsl-update.stdout.txt') -RedirectStandardError (Join-Path $out 'wsl-update.stderr.txt')
+        if (-not $update.WaitForExit(240000)) { $update.Kill(); throw 'Test-owned WSL prerequisite update exceeded four minutes.' }
+        $update.WaitForExit(); $report.wsl.updateExit=$update.ExitCode; $update.Dispose(); Save-Setup
+        if ($report.wsl.updateExit -ne 0) { throw 'WSL prerequisite update failed; see captured output.' }
+        $version=Start-Process -FilePath $wsl -ArgumentList '--version' -NoNewWindow -PassThru -RedirectStandardOutput (Join-Path $out 'wsl-version.stdout.txt') -RedirectStandardError (Join-Path $out 'wsl-version.stderr.txt')
+        if (-not $version.WaitForExit(10000)) { $version.Kill(); throw 'Updated WSL version query was not noninteractive.' }
+        $version.WaitForExit(); $report.wsl.versionExit=$version.ExitCode; $version.Dispose(); Save-Setup
+        if ($report.wsl.versionExit -ne 0) { throw 'Updated WSL failed its version query.' }
+        # Existing bootstrap prompts expire themselves after 60 seconds. Do not
+        # close unrelated terminals or change the product observation duration.
+        $deadline=[DateTime]::UtcNow.AddSeconds(70)
+        while (@(Get-Process -Name wsl -ErrorAction SilentlyContinue).Count) {
+            if ([DateTime]::UtcNow -ge $deadline) { throw 'A WSL bootstrap prompt remains after prerequisite update.' }
+            Start-Sleep -Milliseconds 500
+        }
     }
     $report.after=[HostedDesktopSetup]::Observe()
     $report.focusAction=[HostedDesktopSetup]::InitializeInput()
