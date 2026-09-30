@@ -12,6 +12,23 @@ $out=[IO.Path]::GetFullPath($OutputDirectory)
 $null=New-Item -ItemType Directory -Force $out
 $report=[ordered]@{ stage='starting'; success=$false; image=$env:ImageOS; imageVersion=$env:ImageVersion; commit=$env:GITHUB_SHA; before=$null; after=$null; policies=@(); closeAction=$null; focusAction=$null; wsl=$null; error=$null }
 function Save-Setup { $report | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $out 'desktop-setup.json') -Encoding UTF8 }
+function Invoke-WslCommand([string]$arguments,[string]$prefix,[int]$timeout) {
+    $start=New-Object Diagnostics.ProcessStartInfo
+    $start.FileName=Join-Path $env:SystemRoot 'System32/wsl.exe'
+    $start.Arguments=$arguments; $start.UseShellExecute=$false; $start.CreateNoWindow=$true
+    $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
+    $process=New-Object Diagnostics.Process; $process.StartInfo=$start
+    $stdout=[IO.File]::Create((Join-Path $out "$prefix.stdout.txt"))
+    $stderr=[IO.File]::Create((Join-Path $out "$prefix.stderr.txt"))
+    try {
+        if (-not $process.Start()) { throw 'Unable to start the owned WSL prerequisite command.' }
+        $copyOut=$process.StandardOutput.BaseStream.CopyToAsync($stdout)
+        $copyErr=$process.StandardError.BaseStream.CopyToAsync($stderr)
+        if (-not $process.WaitForExit($timeout)) { $process.Kill(); throw 'Owned WSL prerequisite command timed out.' }
+        $process.WaitForExit(); $copyOut.GetAwaiter().GetResult(); $copyErr.GetAwaiter().GetResult()
+        return $process.ExitCode
+    } finally { $stdout.Dispose(); $stderr.Dispose(); $process.Dispose() }
+}
 function Set-PrivacyPolicy([string]$path,[string]$name,[int]$value) {
     $old=Get-ItemProperty -LiteralPath $path -Name $name -ErrorAction SilentlyContinue
     $previous=if ($null -eq $old) { $null } else { $old.$name }
@@ -53,17 +70,16 @@ try {
         # Repair the prerequisite before any product observation, never dismiss
         # foreground windows or retry failed cases during the pixel tests.
         $report.stage='wsl-prerequisite'; Save-Setup
-        $report.wsl=[ordered]@{ before=@(Get-CimInstance Win32_Process -Filter "Name='wsl.exe' OR Name='WindowsTerminal.exe'" | Select-Object Name,ProcessId,ParentProcessId,ExecutablePath,CommandLine); updateExit=$null; versionExit=$null }
+        $report.wsl=[ordered]@{ before=@(Get-CimInstance Win32_Process -Filter "Name='wsl.exe' OR Name='WindowsTerminal.exe'" | Select-Object Name,ProcessId,ParentProcessId,ExecutablePath,CommandLine); installExit=$null; versionExit=$null }
         Save-Setup
-        $wsl=Join-Path $env:SystemRoot 'System32/wsl.exe'
-        $update=Start-Process -FilePath $wsl -ArgumentList '--update --web-download' -NoNewWindow -PassThru -RedirectStandardOutput (Join-Path $out 'wsl-update.stdout.txt') -RedirectStandardError (Join-Path $out 'wsl-update.stderr.txt')
-        if (-not $update.WaitForExit(240000)) { $update.Kill(); throw 'Test-owned WSL prerequisite update exceeded four minutes.' }
-        $update.WaitForExit(); $report.wsl.updateExit=$update.ExitCode; $update.Dispose(); Save-Setup
-        if ($report.wsl.updateExit -ne 0) { throw 'WSL prerequisite update failed; see captured output.' }
-        $version=Start-Process -FilePath $wsl -ArgumentList '--version' -NoNewWindow -PassThru -RedirectStandardOutput (Join-Path $out 'wsl-version.stdout.txt') -RedirectStandardError (Join-Path $out 'wsl-version.stderr.txt')
-        if (-not $version.WaitForExit(10000)) { $version.Kill(); throw 'Updated WSL version query was not noninteractive.' }
-        $version.WaitForExit(); $report.wsl.versionExit=$version.ExitCode; $version.Dispose(); Save-Setup
-        if ($report.wsl.versionExit -ne 0) { throw 'Updated WSL failed its version query.' }
+        # The inbox launcher says WSL is absent; --update cannot repair an
+        # absent package. Install the runtime without a Linux distribution.
+        $report.wsl.installExit=Invoke-WslCommand '--install --no-distribution --web-download' 'wsl-install' 240000
+        Save-Setup
+        if ($report.wsl.installExit -ne 0) { throw 'WSL prerequisite installation failed; see captured output.' }
+        $report.wsl.versionExit=Invoke-WslCommand '--version' 'wsl-version' 10000
+        Save-Setup
+        if ($report.wsl.versionExit -ne 0) { throw 'Installed WSL failed its noninteractive version query.' }
         # Existing bootstrap prompts expire themselves after 60 seconds. Do not
         # close unrelated terminals or change the product observation duration.
         $deadline=[DateTime]::UtcNow.AddSeconds(70)
