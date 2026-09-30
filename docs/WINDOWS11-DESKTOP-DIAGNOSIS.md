@@ -12,7 +12,7 @@ This change instruments the desktop preflight. It changes no product code or Win
 
 ## Execution
 
-The existing manual workflow accepts `include_windows11=true`. Pull requests from explicitly named `diagnose/desktop-*` branches also opt into the Windows 11 Arm diagnostic job. Both Server jobs remain required and unchanged in scope. No release is published for a PR.
+The existing manual workflow accepts `include_windows11=true`. Pull requests from explicitly named `diagnose/desktop-*` branches also opt into an isolated preflight-only matrix (Server 2022 control and Windows 11 Arm). This matrix needs no product EXE and runs independently of the existing build/product tests. It cannot establish product coverage. Both Server jobs remain required and unchanged in scope. No release is published for a PR.
 
 The preflight step has a three-minute process limit; `always()` uploads its incremental evidence even when it fails. Only disposable hosted desktops are captured by default; the existing local capture opt-in remains required.
 

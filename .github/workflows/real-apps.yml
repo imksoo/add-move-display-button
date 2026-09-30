@@ -87,10 +87,34 @@ jobs:
           path: real-app-evidence/
           if-no-files-found: warn
           retention-days: 14
+  desktop-preflight-diagnostic:
+    name: Isolated desktop preflight on ${{ matrix.os }}
+    if: (github.event_name == 'workflow_dispatch' && inputs.include_windows11) || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'diagnose/desktop-'))
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Observe desktop context and exact sentinel pixels
+        timeout-minutes: 3
+        shell: powershell
+        run: ./tools/Test-DesktopReadiness.ps1 -OutputDirectory desktop-preflight-evidence
+      - name: Preserve diagnostic evidence even when the environment is blocked
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: desktop-preflight-${{ matrix.os }}
+          path: desktop-preflight-evidence/
+          if-no-files-found: warn
+          retention-days: 14
   windows11-diagnostic:
     name: Windows 11 Arm diagnostic (coverage not established)
-    # Explicit opt-in diagnostic branches also collect evidence on pull requests.
-    if: (github.event_name == 'workflow_dispatch' && inputs.include_windows11) || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'diagnose/desktop-'))
+    if: github.event_name == 'workflow_dispatch' && inputs.include_windows11
     needs: build
     runs-on: windows-11-arm
     timeout-minutes: 20
