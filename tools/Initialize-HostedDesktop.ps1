@@ -10,7 +10,7 @@ $os=Get-CimInstance Win32_OperatingSystem
 if ($os.ProductType -ne 1 -or [int]$os.BuildNumber -lt 22000) { throw 'Windows 11 client required.' }
 $out=[IO.Path]::GetFullPath($OutputDirectory)
 $null=New-Item -ItemType Directory -Force $out
-$report=[ordered]@{ stage='starting'; success=$false; image=$env:ImageOS; imageVersion=$env:ImageVersion; commit=$env:GITHUB_SHA; before=$null; after=$null; policies=@(); closeAction=$null; focusAction=$null; wsl=$null; error=$null }
+$report=[ordered]@{ stage='starting'; success=$false; image=$env:ImageOS; imageVersion=$env:ImageVersion; commit=$env:GITHUB_SHA; before=$null; after=$null; policies=@(); closeAction=$null; focusAction=$null; wsl=$null; oneDrive=@(); error=$null }
 function Save-Setup { $report | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $out 'desktop-setup.json') -Encoding UTF8 }
 function Invoke-OwnedCommand([string]$path,[string]$arguments,[string]$prefix,[int]$timeout) {
     $start=New-Object Diagnostics.ProcessStartInfo
@@ -21,10 +21,10 @@ function Invoke-OwnedCommand([string]$path,[string]$arguments,[string]$prefix,[i
     $stdout=[IO.File]::Create((Join-Path $out "$prefix.stdout.txt"))
     $stderr=[IO.File]::Create((Join-Path $out "$prefix.stderr.txt"))
     try {
-        if (-not $process.Start()) { throw 'Unable to start the owned WSL prerequisite command.' }
+        if (-not $process.Start()) { throw 'Unable to start the owned prerequisite command.' }
         $copyOut=$process.StandardOutput.BaseStream.CopyToAsync($stdout)
         $copyErr=$process.StandardError.BaseStream.CopyToAsync($stderr)
-        if (-not $process.WaitForExit($timeout)) { $process.Kill(); throw 'Owned WSL prerequisite command timed out.' }
+        if (-not $process.WaitForExit($timeout)) { $process.Kill(); throw 'Owned prerequisite command timed out.' }
         $process.WaitForExit(); $null=$copyOut.GetAwaiter().GetResult(); $null=$copyErr.GetAwaiter().GetResult()
         return $process.ExitCode
     } finally { $stdout.Dispose(); $stderr.Dispose(); $process.Dispose() }
@@ -69,6 +69,26 @@ try {
         # This image's WSL bootstrap opens unsolicited update-prompt terminals.
         # Repair the prerequisite before any product observation, never dismiss
         # foreground windows or retry failed cases during the pixel tests.
+        # OneDrive's first-sign-in host also took foreground during a recorded
+        # Chrome observation. This disposable account has no sync test coverage.
+        Set-PrivacyPolicy 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive' 'DisableFileSyncNGSC' 1
+        $session=[Diagnostics.Process]::GetCurrentProcess().SessionId
+        foreach ($client in @(Get-CimInstance Win32_Process -Filter "Name='OneDrive.exe'" | Where-Object SessionId -eq $session)) {
+            $path=$client.ExecutablePath
+            $allowed=@((Join-Path $env:LOCALAPPDATA 'Microsoft/OneDrive/OneDrive.exe'),(Join-Path $env:ProgramFiles 'Microsoft OneDrive/OneDrive.exe'))
+            if (${env:ProgramFiles(x86)}) { $allowed+=(Join-Path ${env:ProgramFiles(x86)} 'Microsoft OneDrive/OneDrive.exe') }
+            if ($path -notin $allowed) { throw 'Unexpected OneDrive path; refusing to execute its shutdown command.' }
+            $signature=Get-AuthenticodeSignature -LiteralPath $path
+            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation(?:,|$)') { throw 'OneDrive shutdown executable is not verified Microsoft code.' }
+            $exitCode=Invoke-OwnedCommand $path '/shutdown' 'onedrive-shutdown' 10000
+            $report.oneDrive+=@{pid=$client.ProcessId;path=$path;shutdownExit=$exitCode}; Save-Setup
+            if ($exitCode -ne 0) { throw 'OneDrive did not accept graceful shutdown.' }
+        }
+        for ($i=0;$i -lt 50;$i++) {
+            if (@(Get-Process -Name OneDrive -ErrorAction SilentlyContinue | Where-Object SessionId -eq $session).Count -eq 0) { break }
+            Start-Sleep -Milliseconds 100
+        }
+        if (@(Get-Process -Name OneDrive -ErrorAction SilentlyContinue | Where-Object SessionId -eq $session).Count) { throw 'OneDrive remains active after graceful shutdown.' }
         $report.stage='wsl-prerequisite'; Save-Setup
         $report.wsl=[ordered]@{ before=@(Get-CimInstance Win32_Process -Filter "Name='wsl.exe' OR Name='WindowsTerminal.exe'" | Select-Object Name,ProcessId,ParentProcessId,ExecutablePath,CommandLine); installExit=$null; versionExit=$null }
         Save-Setup

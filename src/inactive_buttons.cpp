@@ -193,7 +193,12 @@ void InactiveButtons::update(Button& button) {
     if (after == hwnd) {
         after = GetWindow(hwnd, GW_HWNDPREV);
     }
-    const HWND insertAfter = after ? after : targetTopmost ? HWND_TOPMOST : HWND_TOP;
+    HWND insertAfter = after ? after : targetTopmost ? HWND_TOPMOST : HWND_TOP;
+    // Inserting after a topmost HWND also makes OUR window topmost. At the
+    // boundary, keep an ordinary target's button at the top of its own band.
+    if (!targetTopmost && after && (GetWindowLongPtrW(after, GWL_EXSTYLE) & WS_EX_TOPMOST)) {
+        insertAfter = HWND_TOP;
+    }
     if (!SetWindowPos(hwnd, insertAfter, bounds.left, bounds.top, bounds.right - bounds.left,
                       bounds.bottom - bounds.top, SWP_NOACTIVATE | SWP_NOOWNERZORDER)) {
         hide(button);

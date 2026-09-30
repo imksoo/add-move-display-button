@@ -417,11 +417,19 @@ int wmain(int argc, wchar_t** argv) {
         point = center(bounds(button));
         CHECK(WindowFromPoint(point) == button);
         CHECK(GetForegroundWindow() == active.get());
+        // Keep a separate topmost window alive while B becomes ordinary. Its
+        // rectangle is away from B's button; only the z-order band is relevant.
+        mtmb::win32::UniqueWindow neighbor{CreateWindowExW(
+            WS_EX_TOPMOST | WS_EX_NOACTIVATE, wc.lpszClassName, L"Topmost neighbor", WS_POPUP,
+            work.left + 10, work.bottom - 100, 120, 80, nullptr, nullptr, module, nullptr)};
+        CHECK(neighbor);
+        ShowWindow(neighbor.get(), SW_SHOWNOACTIVATE);
         CHECK(SetWindowPos(inactive.get(), HWND_NOTOPMOST, 0, 0, 0, 0,
                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE));
         pump(800);
         button = await_inactive(product.pid, inactive.get());
         CHECK(button && !(GetWindowLongPtrW(button, GWL_EXSTYLE) & WS_EX_TOPMOST));
+        neighbor.reset();
         // Switching activation replaces the old background button, not a duplicate.
         SetForegroundWindow(inactive.get());
         pump(800);
