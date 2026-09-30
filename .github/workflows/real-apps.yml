@@ -132,7 +132,7 @@ jobs:
           name: real-app-test-executable
           path: app-under-test
       - name: Provision privacy and WSL prerequisites on the disposable Windows 11 runner
-        timeout-minutes: 7
+        timeout-minutes: 9
         shell: powershell
         run: ./tools/Initialize-HostedDesktop.ps1 -OutputDirectory real-app-evidence/desktop-setup -PrepareApplicationTests
       - name: Verify visible desktop pixels without changing Windows settings

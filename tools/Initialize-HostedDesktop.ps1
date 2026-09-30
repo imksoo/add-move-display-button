@@ -12,9 +12,9 @@ $out=[IO.Path]::GetFullPath($OutputDirectory)
 $null=New-Item -ItemType Directory -Force $out
 $report=[ordered]@{ stage='starting'; success=$false; image=$env:ImageOS; imageVersion=$env:ImageVersion; commit=$env:GITHUB_SHA; before=$null; after=$null; policies=@(); closeAction=$null; focusAction=$null; wsl=$null; error=$null }
 function Save-Setup { $report | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $out 'desktop-setup.json') -Encoding UTF8 }
-function Invoke-WslCommand([string]$arguments,[string]$prefix,[int]$timeout) {
+function Invoke-OwnedCommand([string]$path,[string]$arguments,[string]$prefix,[int]$timeout) {
     $start=New-Object Diagnostics.ProcessStartInfo
-    $start.FileName=Join-Path $env:SystemRoot 'System32/wsl.exe'
+    $start.FileName=$path
     $start.Arguments=$arguments; $start.UseShellExecute=$false; $start.CreateNoWindow=$true
     $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
     $process=New-Object Diagnostics.Process; $process.StartInfo=$start
@@ -25,7 +25,7 @@ function Invoke-WslCommand([string]$arguments,[string]$prefix,[int]$timeout) {
         $copyOut=$process.StandardOutput.BaseStream.CopyToAsync($stdout)
         $copyErr=$process.StandardError.BaseStream.CopyToAsync($stderr)
         if (-not $process.WaitForExit($timeout)) { $process.Kill(); throw 'Owned WSL prerequisite command timed out.' }
-        $process.WaitForExit(); $copyOut.GetAwaiter().GetResult(); $copyErr.GetAwaiter().GetResult()
+        $process.WaitForExit(); $null=$copyOut.GetAwaiter().GetResult(); $null=$copyErr.GetAwaiter().GetResult()
         return $process.ExitCode
     } finally { $stdout.Dispose(); $stderr.Dispose(); $process.Dispose() }
 }
@@ -72,12 +72,27 @@ try {
         $report.stage='wsl-prerequisite'; Save-Setup
         $report.wsl=[ordered]@{ before=@(Get-CimInstance Win32_Process -Filter "Name='wsl.exe' OR Name='WindowsTerminal.exe'" | Select-Object Name,ProcessId,ParentProcessId,ExecutablePath,CommandLine); installExit=$null; versionExit=$null }
         Save-Setup
-        # The inbox launcher says WSL is absent; --update cannot repair an
-        # absent package. Install the runtime without a Linux distribution.
-        $report.wsl.installExit=Invoke-WslCommand '--install --no-distribution --web-download' 'wsl-install' 240000
-        Save-Setup
-        if ($report.wsl.installExit -ne 0) { throw 'WSL prerequisite installation failed; see captured output.' }
-        $report.wsl.versionExit=Invoke-WslCommand '--version' 'wsl-version' 10000
+        # The inbox bootstrap rejects even --install on this image. Use the
+        # official signed Arm64 runtime MSI, pinned to its release asset digest.
+        $uri='https://github.com/microsoft/WSL/releases/download/3.0.1/wsl.3.0.1.0.arm64.msi'
+        $expectedHash='857ddbb335ec7d05ffa71d0fd2203750c0e8fc29bb164f8a95db92bd7bba4263'
+        $installer=Join-Path ([IO.Path]::GetTempPath()) 'mtmb-ci-wsl.3.0.1.0.arm64.msi'
+        $report.wsl['installer']=$uri; Save-Setup
+        Invoke-WebRequest -UseBasicParsing -Uri $uri -OutFile $installer -TimeoutSec 120
+        try {
+            $digest=(Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+            $signature=Get-AuthenticodeSignature -LiteralPath $installer
+            $report.wsl['sha256']=$digest; $report.wsl['signature']=$signature.Status.ToString()
+            $report.wsl['publisher']=if ($null -eq $signature.SignerCertificate) { $null } else { $signature.SignerCertificate.Subject }; Save-Setup
+            if ($digest -ne $expectedHash -or $signature.Status -ne 'Valid' -or $report.wsl.publisher -notmatch 'O=Microsoft Corporation(?:,|$)') { throw 'WSL installer digest or Microsoft signature did not match.' }
+            $msiexec=Join-Path $env:SystemRoot 'System32/msiexec.exe'
+            $arguments='/i "'+$installer+'" /qn /norestart /Lwe "'+(Join-Path $out 'wsl-install-msi.log')+'"'
+            $report.wsl.installExit=Invoke-OwnedCommand $msiexec $arguments 'wsl-install' 240000
+            Save-Setup
+            if ($report.wsl.installExit -notin @(0,3010)) { throw 'WSL runtime MSI installation failed; see captured output.' }
+        } finally { Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue }
+        $wsl=Join-Path $env:SystemRoot 'System32/wsl.exe'
+        $report.wsl.versionExit=Invoke-OwnedCommand $wsl '--version' 'wsl-version' 10000
         Save-Setup
         if ($report.wsl.versionExit -ne 0) { throw 'Installed WSL failed its noninteractive version query.' }
         # Existing bootstrap prompts expire themselves after 60 seconds. Do not
