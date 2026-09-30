@@ -210,6 +210,23 @@ void InactiveButtons::update(Button& button) {
                           SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER |
                               SWP_SHOWWINDOW)) {
             hide(button);
+            return;
+        }
+    }
+    // Positioning/visibility changes and queued leave events can leave the hot
+    // state stale without another WM_MOUSEMOVE. Reconcile after hit-test probing
+    // has finished; only our own visible popup may become hovered.
+    POINT cursor{};
+    const bool hovered = GetCursorPos(&cursor) && PtInRect(&bounds, cursor) &&
+                         WindowFromPoint(cursor) == hwnd;
+    if (button.hover != hovered) {
+        button.hover = hovered;
+        if (hovered) {
+            TRACKMOUSEEVENT tracking{sizeof(tracking), TME_LEAVE, hwnd, 0};
+            TrackMouseEvent(&tracking);
+        }
+        if (!paint(button)) {
+            hide(button);
         }
     }
 }

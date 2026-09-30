@@ -10,7 +10,7 @@ $os=Get-CimInstance Win32_OperatingSystem
 if ($os.ProductType -ne 1 -or [int]$os.BuildNumber -lt 22000) { throw 'Windows 11 client required.' }
 $out=[IO.Path]::GetFullPath($OutputDirectory)
 $null=New-Item -ItemType Directory -Force $out
-$report=[ordered]@{ stage='starting'; success=$false; image=$env:ImageOS; imageVersion=$env:ImageVersion; commit=$env:GITHUB_SHA; before=$null; after=$null; policies=@(); closeAction=$null; error=$null }
+$report=[ordered]@{ stage='starting'; success=$false; image=$env:ImageOS; imageVersion=$env:ImageVersion; commit=$env:GITHUB_SHA; before=$null; after=$null; policies=@(); closeAction=$null; focusAction=$null; error=$null }
 function Save-Setup { $report | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $out 'desktop-setup.json') -Encoding UTF8 }
 function Set-PrivacyPolicy([string]$path,[string]$name,[int]$value) {
     $old=Get-ItemProperty -LiteralPath $path -Name $name -ErrorAction SilentlyContinue
@@ -49,6 +49,7 @@ try {
         if ($null -ne [HostedDesktopSetup]::Observe()) { throw 'Setup UI reappeared after policy application.' }
     }
     $report.after=[HostedDesktopSetup]::Observe()
+    $report.focusAction=[HostedDesktopSetup]::InitializeInput()
     [HostedDesktopSetup]::Capture((Join-Path $out 'after.png'))
     $report.success=$true
 } catch { $report.error=$_.Exception.ToString(); throw }
