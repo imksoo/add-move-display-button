@@ -43,7 +43,7 @@ ctest --test-dir build -C Release --output-on-failure --verbose
 
 すべての必須ジョブが成功した場合に限り、同じEXEのハッシュと結果を再照合してリリース用ファイルを作ります。`main`ではGitHub ReleasesへEXE・ポータブルZIP・証跡ZIP・SHA256SUMSを公開します。公開前にアップロード済みファイルを再ダウンロードしてハッシュを確認し、既存リリースの同名資産は上書きしません。
 
-Windows 11 Armランナーの画面前提不成立はIssue #2で追跡中です。Store／電卓が未登録ならunavailableであり、Serverの成功をWindows 11の現行Notepad／Storeの成功とは扱いません。混在DPIや全テーマの実機確認も別の検証です。
+Windows 11 Armの使い捨てランナーでは、初回privacy UIなどの環境準備を別ステップで行い、元の厳密な2色preflightの後、現行Notepad／Explorer／Store／電卓の通常・最大化・復元後12条件を同じjobで検査します。[Issue #2の診断・修復と証跡](docs/WINDOWS11-DESKTOP-DIAGNOSIS.md)を参照してください。Store／電卓が未登録ならunavailableであり、Serverの成功で代替しません。この検証結果は記録したコミットのx64 EXEに対するもので、公開済みv0.1.8への遡及的な合格宣言ではありません。混在DPIや全テーマの実機確認も別の検証です。
 
 LinuxではWindows EXEを生成せず、APIダブルによるロジック試験のみを行います。
 
@@ -55,3 +55,4 @@ python tests/package_release_test.py
 ```
 
 `--quit`は終了、`--startup-check`はローダー確認、`--help`は説明です。`--show-on-single-monitor`は表示試験専用です。製品は未署名です。組織の利用ポリシーに従い、セキュリティ機能を無効にしないでください。
+

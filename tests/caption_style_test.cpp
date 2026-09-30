@@ -30,7 +30,9 @@ void pump(DWORD milliseconds) {
             TranslateMessage(&message);
             DispatchMessageW(&message);
         }
-        Sleep(10);
+        // This thread owns the target of the EXE's bounded synchronous probes.
+        // Wake for sent messages instead of sleeping through their 20 ms budget.
+        MsgWaitForMultipleObjectsEx(0, nullptr, 10, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
     } while (GetTickCount64() < deadline);
 }
 
@@ -293,6 +295,16 @@ int wmain(int argc, wchar_t** argv) {
             CHECK(app.host && app.overlay);
             SetForegroundWindow(fixture.get());
             pump(800);
+            if (!IsWindowVisible(app.overlay)) {
+                const HWND foreground = GetForegroundWindow();
+                DWORD foregroundPid = 0;
+                GetWindowThreadProcessId(foreground, &foregroundPid);
+                wchar_t foregroundClass[128]{};
+                GetClassNameW(foreground, foregroundClass, _countof(foregroundClass));
+                std::wcerr << L"Hidden overlay=" << app.overlay << L" fixture=" << fixture.get()
+                           << L" foreground=" << foreground << L" pid=" << foregroundPid
+                           << L" class=" << foregroundClass << L'\n';
+            }
             CHECK(IsWindowVisible(app.overlay));
             RECT actual{};
             CHECK(GetWindowRect(app.overlay, &actual));

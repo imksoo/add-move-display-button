@@ -193,7 +193,12 @@ void InactiveButtons::update(Button& button) {
     if (after == hwnd) {
         after = GetWindow(hwnd, GW_HWNDPREV);
     }
-    const HWND insertAfter = after ? after : targetTopmost ? HWND_TOPMOST : HWND_TOP;
+    HWND insertAfter = after ? after : targetTopmost ? HWND_TOPMOST : HWND_TOP;
+    // Inserting after a topmost HWND also makes OUR window topmost. At the
+    // boundary, keep an ordinary target's button at the top of its own band.
+    if (!targetTopmost && after && (GetWindowLongPtrW(after, GWL_EXSTYLE) & WS_EX_TOPMOST)) {
+        insertAfter = HWND_TOP;
+    }
     if (!SetWindowPos(hwnd, insertAfter, bounds.left, bounds.top, bounds.right - bounds.left,
                       bounds.bottom - bounds.top, SWP_NOACTIVATE | SWP_NOOWNERZORDER)) {
         hide(button);
@@ -209,6 +214,23 @@ void InactiveButtons::update(Button& button) {
         if (!SetWindowPos(hwnd, insertAfter, 0, 0, 0, 0,
                           SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER |
                               SWP_SHOWWINDOW)) {
+            hide(button);
+            return;
+        }
+    }
+    // Positioning/visibility changes and queued leave events can leave the hot
+    // state stale without another WM_MOUSEMOVE. Reconcile after hit-test probing
+    // has finished; only our own visible popup may become hovered.
+    POINT cursor{};
+    const bool hovered =
+        GetCursorPos(&cursor) && PtInRect(&bounds, cursor) && WindowFromPoint(cursor) == hwnd;
+    if (button.hover != hovered) {
+        button.hover = hovered;
+        if (hovered) {
+            TRACKMOUSEEVENT tracking{sizeof(tracking), TME_LEAVE, hwnd, 0};
+            TrackMouseEvent(&tracking);
+        }
+        if (!paint(button)) {
             hide(button);
         }
     }

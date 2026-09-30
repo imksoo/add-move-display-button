@@ -1,0 +1,566 @@
+{
+  "note": "Derived excerpt, not the raw results.json. Keeps all case statuses and selected Chrome failure fields; original ZIP and file hashes below.",
+  "runUrl": "https://github.com/imksoo/add-move-display-button/actions/runs/36667375257",
+  "artifactId": 11076782283,
+  "artifactZipSha256": "e21362e4b42ed84cc9703ed7c0455af1aefced224f7e53ff08d719a329e50127",
+  "sourceResultsSha256": "fe97be99b0a264d6334681ce023f690508aad1449a0874bf6ef2d277e3add0cb",
+  "commit": "d5fc3cac5b8b80c1ebbd2469e42056a0cda08724",
+  "executableSha256": "e7d4dd5e81b134175ab30fb262fc96c0fb68e3bca68f26a0f3cc7f358aec32db",
+  "cases": [
+    {
+      "app": "Notepad",
+      "state": "normal",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "Notepad",
+      "state": "maximized",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "Notepad",
+      "state": "restored-narrow",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "Explorer",
+      "state": "normal",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "Explorer",
+      "state": "maximized",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "Explorer",
+      "state": "restored-narrow",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "Chrome",
+      "state": "normal",
+      "status": "failed",
+      "reason": "Overlay disappears or shifts during steady state."
+    },
+    {
+      "app": "Chrome",
+      "state": "maximized",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "Chrome",
+      "state": "restored-narrow",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "TaskScheduler",
+      "state": "normal",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "TaskScheduler",
+      "state": "maximized",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "TaskScheduler",
+      "state": "restored-narrow",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "MicrosoftStore",
+      "state": "normal",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "MicrosoftStore",
+      "state": "maximized",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "MicrosoftStore",
+      "state": "restored-narrow",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "Calculator",
+      "state": "normal",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "Calculator",
+      "state": "maximized",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "Calculator",
+      "state": "restored-narrow",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "WPF-fixture",
+      "state": "normal",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "WPF-fixture",
+      "state": "maximized",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "WPF-fixture",
+      "state": "restored-narrow",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "WinForms-fixture",
+      "state": "normal",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "WinForms-fixture",
+      "state": "maximized",
+      "status": "passed",
+      "reason": null
+    },
+    {
+      "app": "WinForms-fixture",
+      "state": "restored-narrow",
+      "status": "passed",
+      "reason": null
+    }
+  ],
+  "chromeFailure": {
+    "app": "Chrome",
+    "state": "normal",
+    "status": "failed",
+    "reason": "Overlay disappears or shifts during steady state.",
+    "stableSamples": 3,
+    "foreground": {
+      "Handle": 393530,
+      "Pid": 6728,
+      "Class": "Chrome_WidgetWin_1",
+      "Process": "chrome",
+      "Version": "153.0.8010.53",
+      "Package": null,
+      "Title": "MTMB isolated Chrome test - Google Chrome",
+      "Cloaked": 0,
+      "Bounds": {
+        "Left": 35,
+        "Top": 40,
+        "Right": 979,
+        "Bottom": 560,
+        "Width": 944,
+        "Height": 520
+      },
+      "Visible": true
+    },
+    "overlay": {
+      "Left": 799,
+      "Top": 47,
+      "Right": 823,
+      "Bottom": 63,
+      "Width": 24,
+      "Height": 16
+    },
+    "failureContext": {
+      "input": {
+        "TrackingOk": true,
+        "Tracking": 0,
+        "ZOrderOk": true,
+        "ZOrder": 0,
+        "TimeoutOk": true,
+        "Timeout": 0,
+        "Cursor": {
+          "X": 10,
+          "Y": 670
+        },
+        "AtCursor": {
+          "Handle": 131402,
+          "Pid": 7648,
+          "Class": "SysListView32",
+          "Process": "explorer",
+          "Version": "10.0.26100.8117 (WinBuild.160101.0800)",
+          "Package": null,
+          "Title": "FolderView",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 0,
+            "Top": 0,
+            "Right": 1024,
+            "Bottom": 768,
+            "Width": 1024,
+            "Height": 768
+          },
+          "Visible": true
+        },
+        "Foreground": {
+          "Handle": 66404,
+          "Pid": 7708,
+          "Class": "OneDriveReactNativeWin32WindowClass",
+          "Process": "OneDrive",
+          "Version": "25.087.0506.0001",
+          "Package": null,
+          "Title": "",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 0,
+            "Top": 0,
+            "Right": 15,
+            "Bottom": 15,
+            "Width": 15,
+            "Height": 15
+          },
+          "Visible": false
+        }
+      },
+      "target": {
+        "Handle": 393530,
+        "Pid": 6728,
+        "Class": "Chrome_WidgetWin_1",
+        "Process": "chrome",
+        "Version": "153.0.8010.53",
+        "Package": null,
+        "Title": "MTMB isolated Chrome test - Google Chrome",
+        "Cloaked": 0,
+        "Bounds": {
+          "Left": 35,
+          "Top": 40,
+          "Right": 979,
+          "Bottom": 560,
+          "Width": 944,
+          "Height": 520
+        },
+        "Visible": true
+      },
+      "windows": [
+        {
+          "Handle": 328450,
+          "Pid": 3972,
+          "Class": "MoveToMonitorButton.Overlay.v1",
+          "Process": "MoveToMonitorButton",
+          "Version": null,
+          "Package": null,
+          "Title": "別のモニターに移動",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 799,
+            "Top": 47,
+            "Right": 823,
+            "Bottom": 63,
+            "Width": 24,
+            "Height": 16
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 66426,
+          "Pid": 7708,
+          "Class": "MSCTFIME UI",
+          "Process": "OneDrive",
+          "Version": "25.087.0506.0001",
+          "Package": null,
+          "Title": "MSCTFIME UI",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 458998,
+          "Pid": 7708,
+          "Class": "IME",
+          "Process": "OneDrive",
+          "Version": "25.087.0506.0001",
+          "Package": null,
+          "Title": "Default IME",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 66404,
+          "Pid": 7708,
+          "Class": "OneDriveReactNativeWin32WindowClass",
+          "Process": "OneDrive",
+          "Version": "25.087.0506.0001",
+          "Package": null,
+          "Title": "",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 0,
+            "Top": 0,
+            "Right": 15,
+            "Bottom": 15,
+            "Width": 15,
+            "Height": 15
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 66378,
+          "Pid": 7708,
+          "Class": "OleDdeWndClass",
+          "Process": "OneDrive",
+          "Version": "25.087.0506.0001",
+          "Package": null,
+          "Title": "DDE Server Window",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 1114638,
+          "Pid": 7708,
+          "Class": "ATL:00007FFC1DC50090",
+          "Process": "OneDrive",
+          "Version": "25.087.0506.0001",
+          "Package": null,
+          "Title": "",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 52,
+            "Top": 52,
+            "Right": 820,
+            "Bottom": 571,
+            "Width": 768,
+            "Height": 519
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 589952,
+          "Pid": 7708,
+          "Class": "IME",
+          "Process": "OneDrive",
+          "Version": "25.087.0506.0001",
+          "Package": null,
+          "Title": "Default IME",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 458820,
+          "Pid": 7708,
+          "Class": "ATL:00007FFC1DC50090",
+          "Process": "OneDrive",
+          "Version": "25.087.0506.0001",
+          "Package": null,
+          "Title": "",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 26,
+            "Top": 26,
+            "Right": 794,
+            "Bottom": 545,
+            "Width": 768,
+            "Height": 519
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 262808,
+          "Pid": 7708,
+          "Class": "IME",
+          "Process": "OneDrive",
+          "Version": "25.087.0506.0001",
+          "Package": null,
+          "Title": "Default IME",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 458776,
+          "Pid": 7708,
+          "Class": "ATL:00007FFC1DC50090",
+          "Process": "OneDrive",
+          "Version": "25.087.0506.0001",
+          "Package": null,
+          "Title": "",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 156,
+            "Top": 156,
+            "Right": 924,
+            "Bottom": 675,
+            "Width": 768,
+            "Height": 519
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 328348,
+          "Pid": 7708,
+          "Class": "IME",
+          "Process": "OneDrive",
+          "Version": "25.087.0506.0001",
+          "Package": null,
+          "Title": "Default IME",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 393714,
+          "Pid": 7708,
+          "Class": "SkyDrive Class Name {090B42FF-7B26-4416-99B6-CB17896CF07C}-Personal",
+          "Process": "OneDrive",
+          "Version": "25.087.0506.0001",
+          "Package": null,
+          "Title": "OneDrive",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 0,
+            "Top": 0,
+            "Right": 136,
+            "Bottom": 39,
+            "Width": 136,
+            "Height": 39
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 458996,
+          "Pid": 7708,
+          "Class": "ATL:00007FFC1DC50090",
+          "Process": "OneDrive",
+          "Version": "25.087.0506.0001",
+          "Package": null,
+          "Title": "",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 78,
+            "Top": 78,
+            "Right": 846,
+            "Bottom": 597,
+            "Width": 768,
+            "Height": 519
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 328166,
+          "Pid": 3972,
+          "Class": "MoveToMonitorButton.Host.v1",
+          "Process": "MoveToMonitorButton",
+          "Version": null,
+          "Package": null,
+          "Title": "MoveToMonitorButton",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": -32000,
+            "Top": -32000,
+            "Right": -32000,
+            "Bottom": -32000,
+            "Width": 0,
+            "Height": 0
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 394016,
+          "Pid": 3972,
+          "Class": "IME",
+          "Process": "MoveToMonitorButton",
+          "Version": null,
+          "Package": null,
+          "Title": "Default IME",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 0,
+            "Top": 0,
+            "Right": 0,
+            "Bottom": 0,
+            "Width": 0,
+            "Height": 0
+          },
+          "Visible": false
+        },
+        {
+          "Handle": 131952,
+          "Pid": 3972,
+          "Class": "MoveToMonitorButton.InactiveOverlay.v1",
+          "Process": "MoveToMonitorButton",
+          "Version": null,
+          "Package": null,
+          "Title": "別のモニターに移動",
+          "Cloaked": 0,
+          "Bounds": {
+            "Left": 799,
+            "Top": 47,
+            "Right": 823,
+            "Bottom": 63,
+            "Width": 24,
+            "Height": 16
+          },
+          "Visible": true
+        }
+      ]
+    }
+  }
+}

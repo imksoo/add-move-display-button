@@ -1,0 +1,285 @@
+{
+  "runUrl": "https://github.com/imksoo/add-move-display-button/actions/runs/36668291468",
+  "attempt": 1,
+  "armJobId": 109737854758,
+  "prHead": "45da8a6945e95421a0e8b17118e177445eaa13a4",
+  "testedMergeCommit": "7d3311bf76a8a6d356588c8dad7ab3ffc6aa1024",
+  "artifactId": 11076827438,
+  "artifactZipSha256": "37756cf6014894b32ff67aa56ee8eb8dfe48096463c95f50a12eec246af0a1b7",
+  "executableArtifactId": 11077026698,
+  "executableArtifactZipSha256": "5c9268edda61374b3c00f21a7bffa2202ccd5f9936e615570832a48118339a28",
+  "executableSha256": "fe29dbeeebe540e054d54044d6cbabddd241ecc7b09c8ad67dcdaf18268e92f4",
+  "files": [
+    {
+      "path": "desktop-readiness.json",
+      "sha256": "052955ab5231fc1aa42856862b0dc6fb77488ca398144df65eb137b4c1d6f526",
+      "bytes": 53140,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "desktop-diagnostic.json",
+      "sha256": "64c6f45143345193ea0b7f6b9eb8af61746861ac35298c67845e832e15884012",
+      "bytes": 5819,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "desktop-sentinel-0.png",
+      "sha256": "8e43a6afd3560ffa9bcdded6fc66842e6715168908c54a45df77f047c61aa261",
+      "bytes": 9661,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "desktop-sentinel-1.png",
+      "sha256": "328ab9ccb8387008f413dda8ced1d091d297328b7e89550982db9ff45c3a965a",
+      "bytes": 9661,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "inactive-result.json",
+      "sha256": "71d858bc81c49662f6b210f58a00991a23b65d3c0fc60060260c85b51b5161bc",
+      "bytes": 411,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "desktop-setup/desktop-setup.json",
+      "sha256": "6c41c3cc127ff63395627109a469e7e7440c1dee1b2f0ce5d71212ccfd324ac4",
+      "bytes": 4466,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Calculator-launch-before.json",
+      "sha256": "0593a68aca207432b5a6feda1eabfae91adebf56d842ccd5d3da5460674efbdd",
+      "bytes": 1181,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Notepad-normal-baseline.png",
+      "sha256": "d93ab594d1c8ce29073827fd6d1f96fb80bfc76f903704db609b2923422ac222",
+      "bytes": 11900,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Notepad-normal-normal.png",
+      "sha256": "f0c8ac3bfc0b59fe040d7f9e0d31ab5d23eb4c70cee4c088a09c4e50724e5000",
+      "bytes": 12265,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Notepad-normal-hover.png",
+      "sha256": "8de0d38097ebf6397a3c06d3074fd64af0e1aa655dfff96aee26ffc4134aa594",
+      "bytes": 12235,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Notepad-maximized-baseline.png",
+      "sha256": "8c937ed71bd17b0b3ccfa9e75016461bd52bd063ef409cada25f512f4d0fd81d",
+      "bytes": 5470,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Notepad-maximized-normal.png",
+      "sha256": "e07626b5768eb38c89090d1c22a00ed6f0495602dd7bfd447b3009a70752a09f",
+      "bytes": 5755,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Notepad-maximized-hover.png",
+      "sha256": "3f44793ebaa8ac5a75837e5b24bfddc1c9879717c6e2a7d8a1011c34a9885c34",
+      "bytes": 5777,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Notepad-restored-narrow-baseline.png",
+      "sha256": "e6c3149a38983682479c2df4aace9524387c4c3e106981420d8fed1546a59994",
+      "bytes": 10481,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Notepad-restored-narrow-normal.png",
+      "sha256": "fd22f0bc1d29a894d6de1ecfb4d5dd748a046dfbef783eea209125c6ef567098",
+      "bytes": 10807,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Notepad-restored-narrow-hover.png",
+      "sha256": "90d2eb7495938a94ce01f2e7e49acfb50c84088a4afe18c4a0a2f40b52abc118",
+      "bytes": 10842,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Explorer-normal-baseline.png",
+      "sha256": "39a3c21222609e318621a83314ec82b429a829f0f88b11c45d3cb42d3bd832f3",
+      "bytes": 18350,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Explorer-normal-normal.png",
+      "sha256": "c87887ab4a282b812b5dce5c897d85181f2bc40d62d0d835d6312880ab0bdd80",
+      "bytes": 18713,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Explorer-normal-hover.png",
+      "sha256": "35f252ed53b096fa43a1cb556d421c03a1763debab49bc8b8a66b9a8a7b1302a",
+      "bytes": 18717,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Explorer-maximized-baseline.png",
+      "sha256": "b44012d5afcbe9dcf039aee851ba66578af0d0b4972a6d17c22714fb667316fa",
+      "bytes": 10717,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Explorer-maximized-normal.png",
+      "sha256": "c4998741aeaf890dd7524b2b554762b44f11d49de05925678309f62ff2137863",
+      "bytes": 11018,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Explorer-maximized-hover.png",
+      "sha256": "af77a426e9814cd9da441de9d7f67a5543bb2679080b140e03fc42ab5037edfd",
+      "bytes": 11026,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Explorer-restored-narrow-baseline.png",
+      "sha256": "90039c78785b3d6342c9e6380ae91eb9dd78121e9474dab08203cc10acf484c1",
+      "bytes": 15809,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Explorer-restored-narrow-normal.png",
+      "sha256": "67c2bac08700bec4cd32ef6c27a7591d3b91827c2859226bc53c8e2834f04227",
+      "bytes": 16168,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Explorer-restored-narrow-hover.png",
+      "sha256": "6a187fe8086e9b50c24a8a16814432598f29d5f3600fd895dc2d4da03f30f3e3",
+      "bytes": 16173,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "MicrosoftStore-normal-baseline.png",
+      "sha256": "799ad4f44bf3cdb68eb5e2e8c3b982d9653daa2608ba970c2b0de2f89a9507fc",
+      "bytes": 21353,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "MicrosoftStore-normal-normal.png",
+      "sha256": "daa81d8f49866568d59852455a135d5395bffa7f600e09b84e2484dffcaf12de",
+      "bytes": 160661,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "MicrosoftStore-normal-hover.png",
+      "sha256": "ce775484ec6952b3811f957346ecd13320923f4b8a05b3377efb1b16acbb1e29",
+      "bytes": 160657,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "MicrosoftStore-maximized-baseline.png",
+      "sha256": "36b4fd7f253c4cd705027c1a882a1cf0c5c6c5549c9398f23f70cbf29eae4616",
+      "bytes": 155561,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "MicrosoftStore-maximized-normal.png",
+      "sha256": "04865f02fa3686b826ae22d99e96797068e7fa18d71f7f1c8276c892c6bf8d61",
+      "bytes": 18740,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "MicrosoftStore-maximized-hover.png",
+      "sha256": "ceb83a3cff7da649e277c15511c7592666743530352de3c21f1271afff912f2b",
+      "bytes": 18740,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "MicrosoftStore-restored-narrow-baseline.png",
+      "sha256": "e220b28deca62b889b69ffdfd0f10231a6086e32c40f3176e2f6a23598a731cf",
+      "bytes": 37303,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "MicrosoftStore-restored-narrow-normal.png",
+      "sha256": "f327226c3ac487c2a193a400649ed418140115aeeb84c6136c9d83221cab2833",
+      "bytes": 39129,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "MicrosoftStore-restored-narrow-hover.png",
+      "sha256": "a9b445118b4492e6df2e491dddd3e2fa8c13212a3ae457ce8b8f3467f0f3e5ae",
+      "bytes": 39128,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Calculator-normal-baseline.png",
+      "sha256": "5bd995aead720ee386ef83f1bb10a8af12186cce3657d41695c0402198246429",
+      "bytes": 12446,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Calculator-normal-normal.png",
+      "sha256": "17666e84d4106d1a9e42b0f32a83622e08212da00a46568e74a897d9db6aaec5",
+      "bytes": 12680,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Calculator-normal-hover.png",
+      "sha256": "f999ecd051978d102310402dac81cd812a518644749d93df78705430a1f56c4d",
+      "bytes": 12681,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Calculator-maximized-baseline.png",
+      "sha256": "caa7d8c03775403d7de1385bdc174574729e181280baf67d0bad446e8d705fbb",
+      "bytes": 4522,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Calculator-maximized-normal.png",
+      "sha256": "ea03f64be2990acfdd7502706d9065543dc362e24b6927159c75fa6f03993f00",
+      "bytes": 4753,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Calculator-maximized-hover.png",
+      "sha256": "6586fdc3d91f98a2bf9cfe53105eca9d41ce9a3971436dbe3f692bb299b8fa3b",
+      "bytes": 4756,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Calculator-restored-narrow-baseline.png",
+      "sha256": "0d5b50d51c8d2666c63e173f0b548536860ff0a43d2aa1e32a0ae908e6b32b85",
+      "bytes": 11406,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Calculator-restored-narrow-normal.png",
+      "sha256": "3b808064a314b73e49ff38947938908671f1c19d16226c0b657f9f23311f7c9f",
+      "bytes": 11635,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "Calculator-restored-narrow-hover.png",
+      "sha256": "fa471029f5336eab6748cbb517e690b8d17f73a7b01aa25a97cd6059acf01650",
+      "bytes": 11637,
+      "representation": "raw artifact bytes"
+    },
+    {
+      "path": "results.json",
+      "sha256": "9f6754fc492ee8f3222087256c770c57c2426c86114f307bc455de4c02f8163a",
+      "bytes": 198520,
+      "sourceSha256": "38cd651b27ae87585144d5bdc9b2ea89947fec3e57b437ef9b1c50a525760b98",
+      "representation": "Complete JSON data, whitespace and UTF-8 encoding normalized; no fields or cases removed"
+    },
+    {
+      "path": "build-info.json",
+      "sha256": "1459adb1442ba94969ab387c2ac56c60fab80afdb866624c90f13b0824856f70",
+      "bytes": 538,
+      "representation": "raw executable artifact bytes"
+    }
+  ]
+}

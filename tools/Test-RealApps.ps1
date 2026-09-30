@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$ExecutablePath,
     [string]$OutputDirectory = 'real-app-evidence',
-    [switch]$AllowDesktopCapture
+    [switch]$AllowDesktopCapture,
+    [switch]$RequireWindows11Coverage
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -18,6 +19,10 @@ if (@(Get-Process -Name MoveToMonitorButton -ErrorAction SilentlyContinue).Count
 }
 $probe = Join-Path $PSScriptRoot '../tests/desktop/DesktopProbe.cs'
 Add-Type -Path $probe -ReferencedAssemblies System.Drawing.dll
+if ($RequireWindows11Coverage) {
+    if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Hosted input setup is restricted to disposable GitHub runners.' }
+    Add-Type -Path (Join-Path $PSScriptRoot '../tests/desktop/HostedDesktopSetup.cs') -ReferencedAssemblies System.dll,System.Drawing.dll,System.Windows.Forms.dll
+}
 [DesktopProbe]::PhysicalCoordinates()
 $work = [DesktopProbe]::WorkArea()
 $chromeProfile = Join-Path ([IO.Path]::GetTempPath()) ('mtmb-chrome-'+[guid]::NewGuid().ToString('N'))
@@ -38,6 +43,7 @@ $evidence = [ordered]@{
     chromeVersion = $null
     workArea = $work
     packages = @($packages | Select-Object Name,@{n='Version';e={$_.Version.ToString()}},PackageFullName)
+    inputSettings = [DesktopProbe]::InputSettings()
     scope = 'Actual EXE; real apps and explicitly labelled framework fixtures; one monitor override; no physical monitor movement.'
     cases = New-Object System.Collections.Generic.List[object]
     fatalError = $null
@@ -62,7 +68,7 @@ function Get-NewTarget($before,$spec,$launched) {
     $last = 0L; $stable = 0
     do {
         $selected = $null
-        $candidates = @([DesktopProbe]::Windows() | Where-Object { $_.Visible -and $_.Bounds.Width -gt 250 -and $_.Bounds.Height -gt 100 -and $before -notcontains $_.Handle })
+        $candidates = @([DesktopProbe]::Windows() | Where-Object { $_.Visible -and $_.Cloaked -eq 0 -and $_.Bounds.Width -gt 250 -and $_.Bounds.Height -gt 100 -and $before -notcontains $_.Handle })
         foreach ($w in $candidates) {
             $match = $false
             if ($spec.Kind -eq 'Framework' -and $w.Pid -eq $launched.Id) {
@@ -96,7 +102,7 @@ function Get-NewTarget($before,$spec,$launched) {
 }
 function Test-WindowState($spec,$target,[string]$mode) {
     $hwnd = [IntPtr]$target.Handle
-    $result = [ordered]@{ app=$spec.Name; kind=$spec.Kind; state=$mode; status='failed'; reason=$null; window=$target; caption=$null; overlay=$null; nativeSizeMatched=$null; pixelGlyph=$null; pixelHover=$null; stableSamples=0; hitPoints=0; screenshots=@() }
+    $result = [ordered]@{ app=$spec.Name; kind=$spec.Kind; state=$mode; status='failed'; reason=$null; window=$target; caption=$null; overlay=$null; nativeSizeMatched=$null; pixelGlyph=$null; pixelHover=$null; stableSamples=0; hitPoints=0; screenshots=@(); focusSetup=$null; foreground=$null; hitObservations=@(); failureContext=$null }
     $app = $null
     try {
         Require ([DesktopProbe]::IsWindow($hwnd)) 'Identified target window no longer exists.'
@@ -109,11 +115,13 @@ function Test-WindowState($spec,$target,[string]$mode) {
         }
         Start-Sleep -Milliseconds 650
         $null = [DesktopProbe]::SetCursorPos($work.Left+10,$work.Bottom-50)
+        if ($RequireWindows11Coverage) { $result.focusSetup=[HostedDesktopSetup]::InitializeInput() }
         for ($focusAttempt=0;$focusAttempt -lt 5;$focusAttempt++) {
             $null = [DesktopProbe]::SetForegroundWindow($hwnd)
             Start-Sleep -Milliseconds 350
             if ([DesktopProbe]::GetForegroundWindow() -eq $hwnd) { break }
         }
+        $result.foreground=[DesktopProbe]::Describe([DesktopProbe]::GetForegroundWindow())
         Require ([DesktopProbe]::GetForegroundWindow() -eq $hwnd) 'Test cannot obtain target foreground; not an overlay verdict.'
         Require ([DesktopProbe]::IsZoomed($hwnd) -eq ($mode -eq 'maximized')) 'Target did not reach the requested window state.'
         $caption = [DesktopProbe]::Caption($hwnd)
@@ -126,13 +134,18 @@ function Test-WindowState($spec,$target,[string]$mode) {
         $result.screenshots += [IO.Path]::GetFileName($baseline)
         $app = Start-Process -FilePath $exe -ArgumentList '--show-on-single-monitor' -PassThru
         $deadline = [DateTime]::UtcNow.AddSeconds(12)
-        $overlay = $null
+        $overlay = $null; $candidate = $null; $settled = 0
         do {
             Start-Sleep -Milliseconds 250
             $app.Refresh()
             Require (-not $app.HasExited) 'Utility exited while waiting for the overlay.'
             $found = @([DesktopProbe]::Windows() | Where-Object { $_.Pid -eq $app.Id -and $_.Class -eq 'MoveToMonitorButton.Overlay.v1' -and $_.Visible })
-            if ($found.Count) { $overlay = $found[0]; break }
+            if ($found.Count) {
+                $current=$found[0]
+                if ($null -ne $candidate -and $candidate.Handle -eq $current.Handle -and $candidate.Bounds.Same($current.Bounds)) { $settled++ } else { $settled=0 }
+                $candidate=$current
+                if ($settled -ge 2) { $overlay=$current; break }
+            } else { $candidate=$null; $settled=0 }
         } while ([DateTime]::UtcNow -lt $deadline)
         $null = [DesktopProbe]::CaptureCaption($hwnd,$normal)
         $result.screenshots += [IO.Path]::GetFileName($normal)
@@ -162,7 +175,9 @@ function Test-WindowState($spec,$target,[string]$mode) {
             [DesktopProbe+Point]::new(($bounds.Left+[int]($bounds.Width/2)),($bounds.Top+[int]($bounds.Height/2)))
         )
         foreach ($point in $points) {
-            Require ([DesktopProbe]::WindowFromPoint($point) -eq $oh) 'Overlay has a click-through hole or is occluded.'
+            $hitWindow=[DesktopProbe]::WindowFromPoint($point)
+            $result.hitObservations += [pscustomobject]@{ point=$point; window=[DesktopProbe]::Describe($hitWindow); overlayBounds=[DesktopProbe]::Bounds($oh) }
+            Require ($hitWindow -eq $oh) 'Overlay has a click-through hole or is occluded.'
             Require ([DesktopProbe]::Hit($oh,$point.X,$point.Y) -eq 1) 'Overlay does not return HTCLIENT.'
             $result.hitPoints++
         }
@@ -185,7 +200,13 @@ function Test-WindowState($spec,$target,[string]$mode) {
         Require ($hot.Changed -ge 6) 'Hover did not visibly change the overlay.'
         Require ([DesktopProbe]::Responsive($oh)) 'Overlay message loop is unresponsive.'
         $result.status = 'passed'
-    } catch { $result.reason = $_.Exception.Message }
+    } catch {
+        $result.reason = $_.Exception.Message
+        try {
+            $result.failureContext=[pscustomobject]@{ input=[DesktopProbe]::InputSettings(); target=[DesktopProbe]::Describe($hwnd); windows=[DesktopProbe]::Windows() }
+            [DesktopProbe]::CaptureScreen((Join-Path $out "$($spec.Name)-$mode-failure.png"))
+        } catch { $result.reason += " Diagnostic capture: $($_.Exception.Message)" }
+    }
     finally {
         try { Stop-Utility $app } catch { $result.status='failed'; $result.reason="$($result.reason) Cleanup: $($_.Exception.Message)" }
         $null = [DesktopProbe]::SetCursorPos($work.Left+10,$work.Bottom-50)
@@ -214,6 +235,12 @@ $specs = @(
 try {
     Require ([Environment]::UserInteractive) 'No interactive desktop.'
     Save-Evidence
+    if ($RequireWindows11Coverage) {
+        Require ($os.ProductType -eq 1 -and [int]$os.BuildNumber -ge 22000) 'Windows 11 client required for modern-app coverage.'
+        foreach ($required in @('Microsoft.WindowsNotepad','Microsoft.WindowsStore','Microsoft.WindowsCalculator')) {
+            Require (@($packages | Where-Object Name -eq $required).Count -gt 0) "Required modern package missing: $required"
+        }
+    }
     foreach ($spec in $specs) {
         $launched = $null; $target = $null
         if ($spec.Kind -eq 'Package' -and @($packages | Where-Object Name -eq $spec.Package).Count -eq 0) {
@@ -222,7 +249,14 @@ try {
             continue
         }
         try {
-            $before = @([DesktopProbe]::Windows() | ForEach-Object Handle)
+            $beforeWindows=@([DesktopProbe]::Windows())
+            # UWP may reuse a pre-created, cloaked ApplicationFrameWindow. The
+            # hosted-only suite may accept a newly visible package-verified frame;
+            # a window already visible before our launch is never a test target.
+            if ($RequireWindows11Coverage) {
+                $before=@($beforeWindows | Where-Object { $_.Visible -and $_.Cloaked -eq 0 } | ForEach-Object Handle)
+                @($beforeWindows | Where-Object { $_.Class -eq 'ApplicationFrameWindow' -or ($null -ne $spec.Package -and $_.Package -like "$($spec.Package)_*") }) | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $out "$($spec.Name)-launch-before.json") -Encoding UTF8
+            } else { $before=@($beforeWindows | ForEach-Object Handle) }
             switch ($spec.Kind) {
                 'Chrome' {
                     Require ([bool]$chromePath) 'Google Chrome is required for this hosted desktop suite.'
@@ -251,12 +285,13 @@ try {
                 }
                 'Framework' {
                     $fixture = (Resolve-Path (Join-Path $PSScriptRoot '../tests/desktop/FrameworkFixture.ps1')).Path
-                    $launched = Start-Process (Join-Path $PSHOME 'powershell.exe') -ArgumentList ('-NoProfile -STA -File "'+$fixture+'" -Framework '+$spec.Framework) -PassThru
+                    $launched = Start-Process (Join-Path $PSHOME 'powershell.exe') -NoNewWindow -ArgumentList ('-NoProfile -STA -File "'+$fixture+'" -Framework '+$spec.Framework) -PassThru
                 }
             }
             $target = Get-NewTarget $before $spec $launched
             foreach ($mode in @('normal','maximized','restored-narrow')) { Test-WindowState $spec $target $mode }
         } catch {
+            [pscustomobject]@{ windows=[DesktopProbe]::Windows(); frames=@([DesktopProbe]::Windows() | Where-Object Class -eq 'ApplicationFrameWindow' | ForEach-Object { [DesktopProbe]::Caption([IntPtr]$_.Handle) }) } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $out "$($spec.Name)-launch-windows.json") -Encoding UTF8
             $evidence.cases.Add([pscustomobject]@{app=$spec.Name; kind=$spec.Kind; state='launch'; status='failed'; reason=$_.Exception.Message})
             Save-Evidence
             Write-Host "$($spec.Name) launch failed: $($_.Exception.Message)"
@@ -283,3 +318,11 @@ finally {
 }
 $failures = @($evidence.cases | Where-Object status -eq 'failed')
 Require ($failures.Count -eq 0) "$($failures.Count) real-app test cases failed. See results.json and screenshots."
+if ($RequireWindows11Coverage) {
+    foreach ($required in @('Notepad','Explorer','MicrosoftStore','Calculator')) {
+        foreach ($mode in @('normal','maximized','restored-narrow')) {
+            $matched=@($evidence.cases | Where-Object { $_.app -eq $required -and $_.state -eq $mode -and $_.status -eq 'passed' })
+            Require ($matched.Count -eq 1) "Required Windows 11 coverage missing: $required / $mode"
+        }
+    }
+}

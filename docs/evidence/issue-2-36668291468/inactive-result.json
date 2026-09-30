@@ -1,0 +1,7 @@
+﻿{
+    "passed":  true,
+    "checks":  93,
+    "scope":  "actual EXE; inactive display, hover, first left press/cancel, first right click, z-order, topmost demotion, minimize, tracking, activation, destruction; not physical multi-monitor movement",
+    "executableSha256":  "fe29dbeeebe540e054d54044d6cbabddd241ecc7b09c8ad67dcdaf18268e92f4",
+    "commit":  "7d3311bf76a8a6d356588c8dad7ab3ffc6aa1024"
+}

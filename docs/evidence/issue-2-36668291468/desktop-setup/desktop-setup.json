@@ -1,0 +1,97 @@
+﻿{
+    "stage":  "complete",
+    "success":  true,
+    "image":  "win11-vs2026-arm64",
+    "imageVersion":  "20260920.164.1",
+    "commit":  "7d3311bf76a8a6d356588c8dad7ab3ffc6aa1024",
+    "before":  {
+                   "Hwnd":  66052,
+                   "StartTicks":  639263387257683758,
+                   "Pid":  8212,
+                   "SessionId":  2,
+                   "Process":  "WWAHost",
+                   "Path":  "C:\\Windows\\system32\\wwahost.exe",
+                   "Package":  "Microsoft.Windows.CloudExperienceHost_10.0.26100.1_neutral_neutral_cw5n1h2txyewy"
+               },
+    "after":  null,
+    "policies":  [
+                     {
+                         "path":  "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection",
+                         "before":  0,
+                         "name":  "AllowTelemetry",
+                         "after":  1
+                     },
+                     {
+                         "path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\TextInput",
+                         "before":  null,
+                         "name":  "AllowLinguisticDataCollection",
+                         "after":  0
+                     },
+                     {
+                         "path":  "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy",
+                         "before":  null,
+                         "name":  "LetAppsAccessLocation",
+                         "after":  2
+                     },
+                     {
+                         "path":  "HKLM:\\SOFTWARE\\Policies\\Microsoft\\FindMyDevice",
+                         "before":  null,
+                         "name":  "AllowFindMyDevice",
+                         "after":  0
+                     },
+                     {
+                         "path":  "HKCU:\\SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent",
+                         "before":  null,
+                         "name":  "DisableTailoredExperiencesWithDiagnosticData",
+                         "after":  1
+                     },
+                     {
+                         "path":  "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AdvertisingInfo",
+                         "before":  null,
+                         "name":  "DisabledByGroupPolicy",
+                         "after":  1
+                     },
+                     {
+                         "path":  "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\OOBE",
+                         "before":  null,
+                         "name":  "DisablePrivacyExperience",
+                         "after":  1
+                     },
+                     {
+                         "path":  "HKCU:\\SOFTWARE\\Policies\\Microsoft\\Windows\\OOBE",
+                         "before":  null,
+                         "name":  "DisablePrivacyExperience",
+                         "after":  1
+                     },
+                     {
+                         "path":  "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\OneDrive",
+                         "before":  null,
+                         "name":  "DisableFileSyncNGSC",
+                         "after":  1
+                     }
+                 ],
+    "closeAction":  "WM_CLOSE",
+    "focusAction":  "owned-window-input-and-foreground-delegation",
+    "wsl":  {
+                "before":  [
+                               {
+                                   "Name":  "wsl.exe",
+                                   "ProcessId":  3988,
+                                   "ParentProcessId":  6460,
+                                   "ExecutablePath":  "C:\\Windows\\system32\\wsl.exe",
+                                   "CommandLine":  "C:\\Windows\\system32\\wsl.exe --update --confirm --prompt-before-exit"
+                               }
+                           ],
+                "installExit":  0,
+                "versionExit":  0,
+                "installer":  "https://github.com/microsoft/WSL/releases/download/3.0.1/wsl.3.0.1.0.arm64.msi",
+                "downloadExit":  0,
+                "sha256":  "857ddbb335ec7d05ffa71d0fd2203750c0e8fc29bb164f8a95db92bd7bba4263",
+                "signature":  "Valid",
+                "publisher":  "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+            },
+    "oneDrive":  [
+
+                 ],
+    "error":  null
+}
