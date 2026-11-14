@@ -1,64 +1,67 @@
 # MoveToMonitorButton
 
-Windowsのタイトルバー付近に「別モニターへ移動」ボタンを追加する、無料・MITライセンスのユーティリティです。
+**Move a window to another display with one click from its title bar.**
 
-## ダウンロードと使い方
+**English** · [日本語](README.ja.md)
 
-[GitHub Releases](https://github.com/imksoo/add-move-display-button/releases/latest)の`MoveToMonitorButton.exe`またはWindows x64用ZIPを使います。旧版をトレイの「終了」で閉じ、通常権限で起動してください。既定では2画面以上の拡張表示で有効です。
+[**Download for Windows**](https://github.com/imksoo/add-move-display-button/releases/latest) · [Report a problem](https://github.com/imksoo/add-move-display-button/issues)
 
-- 左クリック：そのウィンドウを次のモニターへ移動。
-- 右クリック：そのウィンドウの移動先を選択。
-- トレイ：移動、一時停止、自動起動の設定、表示診断、終了。
+Working across two or more monitors? Keep a document beside your browser, move a chat window to your secondary display, or move a maximized app without dragging it across your desktop. MoveToMonitorButton adds a small monitor-and-arrow button beside a window's existing controls.
 
-**自動起動**は、トレイアイコンを右クリックし「Windowsへのサインイン時に起動」をオンにします。現在のユーザーだけに適用され、管理者権限は不要です。もう一度選ぶとオフになり、登録を削除します。初期状態はオフです。EXEを移動・削除する前にオフにし、移動先で必要なら再登録してください。Windows側の「アプリ → スタートアップ」で無効にした場合は、そちらも確認してください。
+![MoveToMonitorButton beside the minimize, maximize and close controls in Windows Settings at 200% scaling](docs/images/settings-200-percent.png)
 
-**非アクティブなウィンドウにも、見えているタイトルバーにボタンを表示します。** マウスを乗せただけでは対象を前面にしません。背景のアプリでも、最初のクリックから対応する操作を開始できます。背景用ボタンは対象の重なり順に合わせ、別のアプリを突き抜けて最前面に表示しない構成です。最小化・非表示・終了した対象のボタンは消します。
+*Windows Settings at 200% scaling. The monitor-and-arrow icon to the left of Minimize is the added button. This is a capture of the actual Windows application.*
 
-他アプリへDLL注入、サブクラス化、入力キューの結合はしません。ネットワーク通信や自動昇格も行いません。自動起動をオンにした場合だけ、現在のユーザーのRunキーへ引用符付きのEXEパスを保存します。通常権限と昇格アプリの間にはWindowsの操作制限があります。
+## A familiar place for one more useful action
 
-## 外観と制限
+| What you want to do | How it works |
+|---|---|
+| Move a window to your next display | Left-click the added button. |
+| Choose a specific display | Right-click the button and select a destination. |
+| Move a maximized window | The app restores it, moves it, and maximizes it again. |
+| Work with a window in the background | Visible, unobstructed title bars can show their own button. Hovering does not bring the window to the front. |
+| Keep it ready after signing in | Turn on the optional Windows sign-in startup setting in the tray menu. |
 
-アプリ名に依存せず、独自タイトルバーを使う通常のサイズ変更可能なウィンドウも検出します。標準フレーム属性が省略されている場合は、実際の最小化・最大化ボタンの当たり判定から位置を測ります。DPIごとの画面座標を使い、配置先の5点を入力先ウィンドウで検査します。安全なドラッグ領域を確認できないアプリには自動表示しません。
+- **A visible shortcut:** the control stays with the window you want to move.
+- **Portable:** download one EXE and run it. No installer is required.
+- **Fits modern desktops:** supports standard title bars and compatible custom frames; placement accounts for display scaling.
+- **Free and open source:** MIT licensed, with no account required by this utility.
 
-標準ボタンの幅・高さ・縦位置を取得して同寸法の配置を優先します。安全な余白が足りない独自タイトルバーでは、小型ボタンを縦中央に置く候補を先に試します。それも置けなければ別の安全な位置か非表示に戻します。タブなどを無条件に覆う例外は追加していません。
+## Works with compatible custom title bars
 
-背景は元のタイトルバーをほぼ透かし、ホバー／押下時は薄い明暗を重ねます。DWMの完全複製ではありません。基準ボタン余白のRGBを5点だけ読み、白／黒の記号を選びます。他のウィンドウが重なっている場所は色取得に使いません。製品が画像・タイトル・ファイル名を保存／送信することはありません。
+The button can also appear on apps such as the new ChatGPT desktop app. Detection uses window capabilities and caption hit-testing, rather than a list of application names.
 
-最大化ウィンドウは一度復元して移動し、移動先で再最大化します。独自フレーム、空き領域がない場合、昇格や保護された対象では表示／操作できない場合があります。トレイからの移動と個別の位置推定も用意しています。位置推定は既定で無効です。
+![The added move button on the actual ChatGPT desktop title bar at 150% scaling](docs/images/chatgpt-150-percent.png)
 
-## ソースとビルド
+*ChatGPT at 150% scaling. Actual title-bar capture from the app before sign-in; the move button sits to the left of its existing controls.*
 
-Visual Studio 2022／Build ToolsのC++デスクトップ開発、公式Windows SDK、CMakeを使用します。C++17、標準CRT初期化、静的ランタイム(`/MT`)です。
+The app checks for space where the window reports a draggable title bar. If it cannot confirm a suitable area, it leaves the button hidden. Custom frames, crowded title bars, and apps running with higher privileges can limit availability.
 
-```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DBUILD_TESTING=ON
-cmake --build build --config Release --parallel
-ctest --test-dir build -C Release --output-on-failure --verbose
-./tools/Test-Startup.ps1 -ExecutablePath build/Release/MoveToMonitorButton.exe -OutputPath build/startup-result.json
-```
+## Get started
 
-起動試験は専用の対話デスクトップで実行してください。既に常駐している同アプリがある場合は試験しません。コードは[設計説明](https://github.com/imksoo/add-move-display-button/blob/main/docs/ARCHITECTURE.md)の単位に分けています。
+1. Use **Extend** display mode with at least two monitors. The button is hidden on a single-monitor desktop by default.
+2. Download `MoveToMonitorButton.exe`, or extract the portable ZIP, from [Releases](https://github.com/imksoo/add-move-display-button/releases/latest).
+3. Put the EXE in a folder you intend to keep and run it with normal user permissions.
+4. Use the added button to move windows. Right-click the notification-area icon for startup, pause, diagnostics, and exit.
 
-## CIとリリース
+The download is an **x64 EXE**. That same executable is also tested on **Windows 11 Arm** under x64 emulation. The tray menus are currently in Japanese; this README provides the English guide.
 
-`Real application caption compatibility`がMSVC Release／Debug、公式SDK試験、Linux ASan／UBSan、実アプリ描画試験と非アクティブ操作試験を実行します。2022／2025ではNotepad、Explorer、タスクスケジューラ、WPF／WinForms検証用アプリ、Chromeの計36ケースを検査します。Chrome以外の30ケースは標準ボタンとの寸法一致が必須です。
+### Start with Windows
 
-非アクティブ操作は、配布する実EXEと2枚の検証用ウィンドウを使い、ホバーでの非アクティブ維持、最初の左押下とキャンセル、最初の右クリックメニュー、重なり、最小化、位置追従、前面切替、終了を検査します。1画面での試験なので、物理モニター間の左クリック移動そのものを実証したものではありません。
+Right-click the tray icon and select **「Windowsへのサインイン時に起動」** (“Start when signing in to Windows”). Startup is off by default and applies only to your current user. Select it again to remove the registration.
 
-すべての必須ジョブが成功した場合に限り、同じEXEのハッシュと結果を再照合してリリース用ファイルを作ります。`main`ではGitHub ReleasesへEXE・ポータブルZIP・SHA256SUMSを公開します。ポータブルZIPの内容はEXE・README・LICENSE・EXEのSHA256SUMSの4点です。試験結果、ログ、画面画像、ビルド情報はActionsの成果物に14〜30日保持し、配布ZIPには含めません。リリース説明には検証したActions実行へのリンクを載せます。公開前にアップロード済みファイルを再ダウンロードしてハッシュを確認し、既存リリースの同名資産は上書きしません。
+Before moving or deleting the EXE, turn startup off. If you move it, enable startup again from the new location. If Windows has disabled it under **Settings → Apps → Startup**, check that setting too.
 
-Windows 11 Armの使い捨てランナーでは、初回privacy UIなどの環境準備を別ステップで行い、元の厳密な2色preflightの後、現行Notepad／Explorer／Store／電卓／Windows設定の通常・最大化・復元後を同じ必須jobで検査します。設定アプリは100%・150%・200%の実際の表示倍率で、UI Automationが返す標準3ボタンと追加ボタンの縦中心差が0.5画面ピクセル以内であることを確認します。倍率ごとに2色preflightも再実行します。[Issue #2の診断・修復と証跡](https://github.com/imksoo/add-move-display-button/blob/main/docs/WINDOWS11-DESKTOP-DIAGNOSIS.md)を参照してください。Store／電卓が未登録ならunavailableであり、Serverの成功で代替しません。この検証結果は記録したコミットのx64 EXEに対するもので、公開済みv0.1.8への遡及的な合格宣言ではありません。実際の複数モニター間の混在DPI切替や全テーマの実機確認は別の検証です。
+### Update or remove
 
-ChatGPTとChatGPT ClassicはMicrosoft Storeの公式パッケージを使い、100%・150%・200%で通常／最大化／復元後の計18ケースを追加検査します。新ChatGPTでは独立したUI Automation計測との縦中心差が0.5画面ピクセル以内であることも必須です。使い捨て環境の未ログイン画面を対象とし、ログイン後の全画面構成を確認したものではありません。これらの証跡も配布物には含めません。
+Choose **「終了」** (“Exit”) from the old version's tray menu before replacing it. To remove the utility, turn off its startup setting, exit it, and delete the EXE.
 
-LinuxではWindows EXEを生成せず、APIダブルによるロジック試験のみを行います。
+## Compatibility and transparency
 
-```sh
-cmake -S . -B build-host -DCMAKE_CXX_COMPILER=clang++ -DMTMB_SANITIZE=ON -DCMAKE_BUILD_TYPE=Debug
-cmake --build build-host --parallel
-ctest --test-dir build-host --output-on-failure --verbose
-python tests/package_release_test.py
-```
+Windows Settings and the ChatGPT title bar are checked at **100%, 150%, and 200% scaling**, including normal, maximized, and restored windows. Other real-app checks include Explorer, Notepad, Chrome, Microsoft Store, and Calculator. The exact tested app versions and results are recorded in [GitHub Actions](https://github.com/imksoo/add-move-display-button/actions/workflows/real-apps.yml).
 
-`--quit`は終了、`--startup-check`はローダー確認、`--help`は説明です。`--show-on-single-monitor`は表示試験専用です。製品は未署名です。組織の利用ポリシーに従い、セキュリティ機能を無効にしないでください。
+These tests cover real application windows on disposable desktops. ChatGPT is tested before sign-in. Physical moves between monitors with different DPI settings and every possible app layout are not covered by those CI checks.
 
+The utility does not inject DLLs into other apps or make network requests. It does not save or transmit screenshots, window titles, or filenames. The EXE is currently unsigned.
+
+[Build and test the source](docs/DEVELOPMENT.md) · [Architecture (Japanese)](docs/ARCHITECTURE.md) · [MIT License](LICENSE)

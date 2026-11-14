@@ -34,7 +34,8 @@ jobs:
         run: |
           ./tools/Test-Startup.ps1 -ExecutablePath build/Release/MoveToMonitorButton.exe -OutputPath build/startup-result.json
           New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item build/Release/MoveToMonitorButton.exe,build/Release/build-info.json,build/startup-result.json,build/test-results.xml,README.md,LICENSE dist/
+          Copy-Item build/Release/MoveToMonitorButton.exe,build/Release/build-info.json,build/startup-result.json,build/test-results.xml,LICENSE dist/
+          Copy-Item docs/PORTABLE.md dist/README.md
           New-Item -ItemType Directory -Force dist/test-programs | Out-Null
           Copy-Item build/Release/inactive_overlay_test.exe,build/Release/hosted_display_scale.exe dist/test-programs/
           $hash = (Get-FileHash dist/MoveToMonitorButton.exe -Algorithm SHA256).Hash.ToLowerInvariant()
