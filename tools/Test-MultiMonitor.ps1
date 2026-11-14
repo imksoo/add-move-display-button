@@ -36,9 +36,21 @@ try {
     $config=$config -replace '<count>1</count>','<count>2</count>'
     $config | Set-Content 'C:\VirtualDisplayDriver\vdd_settings.xml' -Encoding utf8
     $inf=Join-Path $driver 'MttVDD.inf'
-    $installer=Start-Process pnputil.exe -ArgumentList @('/add-driver',('"'+$inf+'"'),'/install') -PassThru -NoNewWindow -RedirectStandardOutput (Join-Path $out 'driver-install.txt') -RedirectStandardError (Join-Path $out 'driver-install-error.txt')
+    # Windows PowerShell Start-Process with redirected output can lose ExitCode
+    # (PowerShell/PowerShell#5421); keep the native process object and drain pipes.
+    $start=[Diagnostics.ProcessStartInfo]::new()
+    $start.FileName=Join-Path $env:SystemRoot 'System32/pnputil.exe'
+    $start.Arguments='/add-driver "'+$inf+'" /install'
+    $start.UseShellExecute=$false; $start.CreateNoWindow=$true
+    $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
+    $installer=[Diagnostics.Process]::new(); $installer.StartInfo=$start
+    $null=$installer.Start()
+    $stdout=$installer.StandardOutput.ReadToEndAsync(); $stderr=$installer.StandardError.ReadToEndAsync()
     if (-not $installer.WaitForExit(60000)) { $installer.Kill(); throw 'Driver installation timed out.' }
+    $stdout.Result | Set-Content (Join-Path $out 'driver-install.txt')
+    $stderr.Result | Set-Content (Join-Path $out 'driver-install-error.txt')
     if ($installer.ExitCode -ne 0 -and $installer.ExitCode -ne 3010) { throw "Driver installation failed: $($installer.ExitCode)" }
+    $installer.Dispose()
     Push-Location $out
     try { & $test $exe 2>&1 | Tee-Object 'multi-monitor-test.txt'; $exit=$LASTEXITCODE } finally { Pop-Location }
     if ($exit -ne 0) { throw "Actual multi-monitor test failed: $exit" }

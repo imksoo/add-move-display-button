@@ -527,8 +527,8 @@ private:
         const int gap = mtmb::clamp(dip(3, monitor.dpi), 2, 30);
         // Some hosted WinUI captions expose only ~50 DIP of safe drag space.
         // Preserve vertical alignment while fitting two independently checked
-        // 20-DIP-wide controls; measured native-size pairs were attempted above.
-        const int buttonWidth = dip(context_.buttonCount == 2 ? 20 : 32, monitor.dpi) *
+        // 16-DIP-wide controls; measured native-size pairs were attempted above.
+        const int buttonWidth = dip(context_.buttonCount == 2 ? 16 : 32, monitor.dpi) *
                                 (context_.buttonCount == 2 ? 2 : 1);
         const int buttonHeight = mtmb::clamp(
             static_cast<int>(controls.bottom - controls.top) - 2 * gap, 1, dip(28, monitor.dpi));

@@ -328,7 +328,7 @@ int main() {
                        controls.bottom};
         const auto pair = search(2);
         CHECK(pair.bounds);
-        CHECK(pair.bounds->right - pair.bounds->left == dip(40, dpi));
+        CHECK(pair.bounds->right - pair.bounds->left == dip(32, dpi));
         CHECK(pair.bounds->top + pair.bounds->bottom == controls.top + controls.bottom);
         CHECK(pair.diagnosis.probes >= 10);
     }

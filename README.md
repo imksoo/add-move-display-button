@@ -39,6 +39,8 @@ With **three or more extended displays**, two buttons appear: previous number an
 | 2 | 1 | 3 |
 | 3 | 2 | 1 |
 
+Where title-bar space is narrow, the pair uses compact widths while keeping the same vertical center. If a safe region cannot be verified for both buttons, use the tray menu.
+
 Gaps are preserved: displays 1, 3, and 5 cycle in that order. Disconnected and disabled desktops are excluded after a topology refresh.
 
 Automatic numbering uses Windows display information, but some drivers and configurations differ from Settings → Display → Identify. To match those systems, right-click a button → **「画面番号をWindowsに合わせる…」** (“Match Windows display numbers”), select the item marked **「このウィンドウの画面」** (“this window's display”), and choose the number shown by Windows Identify. The correction persists and applies to both buttons, destination menus, and tooltips. Choosing a number already in use swaps the two. This changes only the utility's labels, not Windows settings.
