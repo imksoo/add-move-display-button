@@ -91,6 +91,14 @@ BOOL WINAPI IsWindow(HWND h) {
     return h != nullptr;
 }
 
+int WINAPI GetClassNameW(HWND, LPWSTR, int) {
+    std::abort(); // This existing fixture exercises DWM, not hosted UWP frames.
+}
+
+BOOL WINAPI IsWindowVisible(HWND) {
+    std::abort();
+}
+
 HWND WINAPI GetAncestor(HWND h, UINT) {
     return h == child || h == otherChild ? target : h;
 }

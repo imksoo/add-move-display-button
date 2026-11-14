@@ -278,6 +278,33 @@ private:
         return std::nullopt;
     }
 
+    std::optional<RECT> hosted_titlebar(const RECT& frame, UINT dpi) {
+        wchar_t name[64]{};
+        if (!GetClassNameW(target_.hwnd, name, _countof(name)) ||
+            std::wstring_view{name} != L"ApplicationFrameWindow") {
+            return std::nullopt;
+        }
+        // UWP's frame host exposes the visible caption row in a child HWND.
+        // Its TITLEBARINFOEX describes a classic frame that is not actually
+        // painted. Use the child's screen bounds, never those classic buttons.
+        HWND child = GetWindow(target_.hwnd, GW_CHILD);
+        for (int count = 0; child && count < 32; ++count, child = GetWindow(child, GW_HWNDNEXT)) {
+            if (!IsWindowVisible(child) || GetAncestor(child, GA_ROOT) != target_.hwnd ||
+                identify(child).pid != target_.pid || !GetClassNameW(child, name, _countof(name)) ||
+                std::wstring_view{name} != L"ApplicationFrameTitleBarWindow") {
+                continue;
+            }
+            RECT row{};
+            if (GetWindowRect(child, &row) && contains(rect(frame), rect(row)) &&
+                row.top <= frame.top + dip(8, dpi) && row.right >= frame.right - dip(4, dpi) &&
+                row.bottom - row.top >= dip(20, dpi) && row.bottom - row.top <= dip(72, dpi) &&
+                row.right - row.left >= dip(90, dpi) && row.right - row.left <= dip(320, dpi)) {
+                return row;
+            }
+        }
+        return std::nullopt;
+    }
+
     bool calculate() {
         const Identity id = target_;
         const ULONGLONG started = GetTickCount64();
@@ -337,6 +364,12 @@ private:
                 controls.right - buttons * GetSystemMetricsForDpi(SM_CXSIZE, monitor.dpi);
             controls.top = frame.top + border;
             controls.bottom = controls.top + GetSystemMetricsForDpi(SM_CYCAPTION, monitor.dpi);
+            if (const auto row = hosted_titlebar(frame, monitor.dpi)) {
+                // Preserve horizontal exclusion and all five input probes.
+                // Only replace the incorrect standard caption's vertical span.
+                controls.top = row->top;
+                controls.bottom = row->bottom;
+            }
         }
         diagnosis_.controls = controls;
         const auto measured = measured_button(window, controls, frame, monitor.dpi, dwm);

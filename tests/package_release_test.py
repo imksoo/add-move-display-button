@@ -33,6 +33,21 @@ class ReleaseEvidenceTest(unittest.TestCase):
             self.write(folder + "results.json", self.results)
             self.write(folder + "inactive-result.json", {"passed": True, "executableSha256": self.digest, "commit": "abc"})
 
+        arm_folder = "real-app-evidence/real-app-evidence-windows-11-arm/"
+        self.write(arm_folder + "desktop-readiness.json", {"status": "ready"})
+        self.write(arm_folder + "inactive-result.json", {"passed": True, "executableSha256": self.digest, "commit": "abc"})
+        for dpi in (96, 144, 192):
+            results = copy.deepcopy(self.results)
+            extra = [dict(app=app, state=mode, status="passed", hitPoints=5, stableSamples=8,
+                          pixelGlyph={"Changed": 10}, pixelHover={"Changed": 20},
+                          verticalCenterErrors=[0, 0, 0], caption={"Dpi": dpi})
+                     for app in (("MicrosoftStore", "Calculator", "Settings") if dpi == 96 else ("Settings",))
+                     for mode in ("normal", "maximized", "restored-narrow")]
+            results["cases"] = results["cases"] + extra if dpi == 96 else extra
+            folder = arm_folder if dpi == 96 else arm_folder + f"settings-dpi-{dpi}/"
+            self.write(folder + "desktop-readiness.json", {"status": "ready"})
+            self.write(folder + "results.json", results)
+
     def write(self, name, value):
         file = self.root / name
         file.parent.mkdir(parents=True, exist_ok=True)
@@ -124,6 +139,17 @@ class ReleaseEvidenceTest(unittest.TestCase):
         self.assertEqual(readiness.read_bytes(), readiness_bytes)
         with self.assertRaisesRegex(ValueError, "Refusing to replace"):
             PACKAGE.package(self.root, output, "abc")
+
+    def test_hidpi_requires_real_window_dpi_and_alignment(self):
+        path = self.root / "real-app-evidence/real-app-evidence-windows-11-arm/settings-dpi-144/results.json"
+        original = json.loads(path.read_text())
+        for change in (lambda c: c.update(caption={"Dpi": 96}),
+                       lambda c: c.update(verticalCenterErrors=[0, 1, 0])):
+            value = copy.deepcopy(original)
+            change(value["cases"][0])
+            path.write_text(json.dumps(value))
+            with self.assertRaises(ValueError):
+                PACKAGE.verify(self.root, "abc")
 
     def test_startup_failure(self):
         self.write("startup-result.json", dict(passed=False, executableSha256=self.digest))

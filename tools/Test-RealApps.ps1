@@ -3,7 +3,9 @@ param(
     [Parameter(Mandatory=$true)][string]$ExecutablePath,
     [string]$OutputDirectory = 'real-app-evidence',
     [switch]$AllowDesktopCapture,
-    [switch]$RequireWindows11Coverage
+    [switch]$RequireWindows11Coverage,
+    [switch]$SettingsOnly,
+    [int]$ExpectedDpi = 0
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -127,7 +129,8 @@ function Test-WindowState($spec,$target,[string]$mode) {
         Require ([DesktopProbe]::IsZoomed($hwnd) -eq ($mode -eq 'maximized')) 'Target did not reach the requested window state.'
         $caption = [DesktopProbe]::Caption($hwnd)
         $result.caption = $caption
-        if ($spec.Name -eq 'Settings') {
+        if ($ExpectedDpi) { Require ($caption.Dpi -eq $ExpectedDpi) "Actual window DPI $($caption.Dpi) differs from required $ExpectedDpi." }
+        if ($RequireWindows11Coverage -and $spec.Name -in @('Settings','Calculator','MicrosoftStore')) {
             $result['childTitlebars'] = @($caption.Children | Where-Object Class -eq 'ApplicationFrameTitleBarWindow' | ForEach-Object { [DesktopProbe]::Caption([IntPtr]$_.Handle) })
             $element = [System.Windows.Automation.AutomationElement]::FromHandle($hwnd)
             $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Button)
@@ -164,6 +167,15 @@ function Test-WindowState($spec,$target,[string]$mode) {
         Require ($null -ne $overlay) 'Overlay not visible on the real application.'
         $bounds = [DesktopProbe]::Bounds([IntPtr]$overlay.Handle)
         $result.overlay = $bounds
+        if ($RequireWindows11Coverage -and $spec.Name -in @('Settings','Calculator','MicrosoftStore')) {
+            $buttons = @($result.captionAutomation | Where-Object { $_.id -in @('Minimize','Maximize','Close') })
+            Require ($buttons.Count -eq 3) 'Independent UI Automation caption buttons are missing.'
+            $result['verticalCenterErrors'] = @($buttons | ForEach-Object { (($bounds.Top+$bounds.Bottom)-($_.top+$_.bottom))/2 })
+            foreach ($button in $buttons) {
+                Require ([Math]::Abs(($bounds.Top+$bounds.Bottom)-($button.top+$button.bottom)) -le 1) 'Overlay vertical center differs from an actual caption button by more than half a pixel.'
+                Require ($bounds.Right -le $button.left -or $bounds.Left -ge $button.right -or $bounds.Bottom -le $button.top -or $bounds.Top -ge $button.bottom) 'Overlay overlaps an independently measured caption button.'
+            }
+        }
         Require ($caption.Window.Contains($bounds)) 'Overlay outside target bounds.'
         Require ($work.Contains($bounds)) 'Overlay outside monitor work area.'
         if ($caption.DwmControlsOk) { Require (-not $bounds.Overlaps($caption.Controls)) 'Overlay overlaps the native caption controls.' }
@@ -246,6 +258,10 @@ $specs = @(
 )
 if ($RequireWindows11Coverage) {
     $specs += @{Name='Settings'; Kind='Package'; Package='windows.immersivecontrolpanel'; RequireNativeMatch=$false}
+}
+if ($SettingsOnly) {
+    Require ([bool]$RequireWindows11Coverage) 'SettingsOnly requires the prepared Windows 11 desktop.'
+    $specs = @($specs | Where-Object Name -eq 'Settings')
 }
 try {
     Require ([Environment]::UserInteractive) 'No interactive desktop.'
@@ -334,7 +350,8 @@ finally {
 $failures = @($evidence.cases | Where-Object status -eq 'failed')
 Require ($failures.Count -eq 0) "$($failures.Count) real-app test cases failed. See results.json and screenshots."
 if ($RequireWindows11Coverage) {
-    foreach ($required in @('Notepad','Explorer','MicrosoftStore','Calculator','Settings')) {
+    $requiredApps = if ($SettingsOnly) { @('Settings') } else { @('Notepad','Explorer','MicrosoftStore','Calculator','Settings') }
+    foreach ($required in $requiredApps) {
         foreach ($mode in @('normal','maximized','restored-narrow')) {
             $matched=@($evidence.cases | Where-Object { $_.app -eq $required -and $_.state -eq $mode -and $_.status -eq 'passed' })
             Require ($matched.Count -eq 1) "Required Windows 11 coverage missing: $required / $mode"

@@ -267,6 +267,8 @@ API HRESULT WINAPI DwmGetWindowAttribute(HWND, DWORD, void*, DWORD);
 #endif
 #ifndef GW_OWNER
 #define GW_OWNER 4
+#define GW_CHILD 5
+#define GW_HWNDNEXT 2
 #endif
 
 using UINT_PTR = uintptr_t;
