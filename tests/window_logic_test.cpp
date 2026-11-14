@@ -1047,6 +1047,7 @@ int main() {
         fake::refresh();
         CHECK(fake::buttonVisible && fake::state().hoverPart == part);
         ApplicationTestAccess::button(*fake::application, fake::button, WM_MOUSELEAVE, 0, 0);
+        fake::refresh();
         CHECK(fake::state().hover && fake::state().hoverPart == part);
     }
     fake::cursor = {};

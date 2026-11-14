@@ -165,13 +165,36 @@ void point(HWND button, int part, int count) {
     pump(100);
 }
 
+void observe_move(const char* phase, HWND target, HWND button, HMONITOR destination) {
+    std::ofstream log("multi-monitor-moves.txt", std::ios::app);
+    RECT rect{}, bounds{};
+    POINT cursor{};
+    GetWindowRect(target, &rect);
+    GetWindowRect(button, &bounds);
+    GetCursorPos(&cursor);
+    GUITHREADINFO input{sizeof(input)};
+    GetGUIThreadInfo(GetWindowThreadProcessId(button, nullptr), &input);
+    log << phase << " target=" << target
+        << " monitor=" << MonitorFromWindow(target, MONITOR_DEFAULTTONEAREST)
+        << " expected=" << destination << " maximized=" << IsZoomed(target)
+        << " foreground=" << GetForegroundWindow() << " rect=" << rect.left << ',' << rect.top
+        << ',' << rect.right << ',' << rect.bottom << " button=" << button
+        << " visible=" << IsWindowVisible(button) << " bounds=" << bounds.left << ',' << bounds.top
+        << ',' << bounds.right << ',' << bounds.bottom << " cursor=" << cursor.x << ',' << cursor.y
+        << " input=" << WindowFromPoint(cursor) << " capture=" << input.hwndCapture
+        << " reason=" << GetPropW(button, L"MTMB.PlacementReason")
+        << " error=" << GetPropW(button, L"MTMB.PlacementError") << std::endl;
+}
+
 void click_move(Process& app, HWND target, int part, int count, HMONITOR destination,
                 bool maximized = false, bool inactive = false) {
     HWND button = await_button(app, target, inactive);
     CHECK(button);
     point(button, part, count);
+    observe_move("before-down", target, button, destination);
     mouse(MOUSEEVENTF_LEFTDOWN);
     pump(60);
+    observe_move("before-up", target, button, destination);
     mouse(MOUSEEVENTF_LEFTUP);
     int stable = 0;
     for (int i = 0; i < 80; ++i) {
@@ -185,6 +208,7 @@ void click_move(Process& app, HWND target, int part, int count, HMONITOR destina
             stable = 0;
         }
     }
+    observe_move("after-move", target, button, destination);
     CHECK(stable >= 8);
     CHECK(GetForegroundWindow() == target);
 }
