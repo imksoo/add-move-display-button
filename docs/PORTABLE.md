@@ -3,9 +3,11 @@
 English guide: https://github.com/imksoo/add-move-display-button#readme
 日本語: https://github.com/imksoo/add-move-display-button/blob/main/README.ja.md
 
-Use two or more monitors in Extend mode, then run MoveToMonitorButton.exe with normal user permissions. Left-click the added title-bar button to move a window to the next monitor; right-click to choose a destination.
+Use two or more monitors in Extend mode, then run MoveToMonitorButton.exe with normal user permissions. Two displays use one button; three or more use previous/next buttons in display-number order, with wraparound. Hover to check the destination, or right-click to choose it.
 
-モニターを2台以上接続し、表示モードを「拡張」にして、EXEを通常権限で起動します。追加ボタンを左クリックすると次のモニターへ移動し、右クリックすると移動先を選べます。
+モニターを2台以上接続し、表示モードを「拡張」にして、EXEを通常権限で起動します。2画面では1ボタン、3画面以上では番号順の前・次の2ボタンになります。端では循環します。マウスを重ねると移動先番号を表示し、右クリックで移動先を選べます。
+
+If numbering differs from Windows Identify, use 「画面番号をWindowsに合わせる…」 in the right-click menu. Windowsの「識別」と番号が違う場合は、同メニューで番号を補正・保存できます。
 
 Optional startup / 自動起動:
 Right-click the tray icon and select 「Windowsへのサインイン時に起動」. Default: off. Current user only. Select again to remove it. Turn it off before moving or deleting the EXE, and register again after moving it.

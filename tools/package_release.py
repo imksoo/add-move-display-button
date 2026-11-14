@@ -48,25 +48,38 @@ def verify(root: Path, commit: str) -> tuple[str, str]:
             apps += ("MicrosoftStore", "Calculator", "Settings")
         verify_cases(folder, commit, digest, apps, 96 if platform == "windows-11-arm" else 0)
         if platform == "windows-11-arm":
+            verify_cases(folder / "paired", commit, digest, ("Settings",), 96, 2)
+        if platform == "windows-11-arm":
             for dpi in (144, 192):
                 scaled = folder / f"settings-dpi-{dpi}"
                 require(read_json(scaled / "desktop-readiness.json")["status"] == "ready",
                         "HiDPI desktop not ready")
                 verify_cases(scaled, commit, digest, ("Settings",), dpi)
+                verify_cases(scaled / "paired", commit, digest, ("Settings",), dpi, 2)
     chatgpt = root / "real-app-evidence" / "real-app-evidence-chatgpt"
     for dpi in (96, 144, 192):
         folder = chatgpt if dpi == 96 else chatgpt / f"settings-dpi-{dpi}"
         require(read_json(folder / "desktop-readiness.json")["status"] == "ready",
                 "ChatGPT desktop not ready")
         verify_cases(folder, commit, digest, ("OpenAI.Codex", "OpenAI.ChatGPT-Desktop"), dpi)
+        verify_cases(folder / "paired", commit, digest, ("OpenAI.Codex", "OpenAI.ChatGPT-Desktop"), dpi, 2)
+    multi = read_json(root / "real-app-evidence/real-app-evidence-multi-monitor/multi-monitor-result.json")
+    require(multi["commit"] == commit and multi["executableSha256"] == digest, "Multi-monitor evidence mismatch")
+    require(multi["passed"] is True, "Multi-monitor navigation failed")
+    details = multi["details"]
+    require(details["threeDisplays"] == 3 and details["twoDisplays"] == 2 and details["restoredDisplays"] == 3,
+            "Missing actual 3-to-2-to-3 topology coverage")
+    require(details["movementCases"] == 9 and details["crossButtonCancelled"] is True and details["hotplugGestureCancelled"] is True,
+            "Incomplete actual multi-monitor input coverage")
     return version, digest
 
 
-def verify_cases(folder: Path, commit: str, digest: str, apps: tuple[str, ...], dpi: int) -> None:
+def verify_cases(folder: Path, commit: str, digest: str, apps: tuple[str, ...], dpi: int, button_count: int = 1) -> None:
     results = read_json(folder / "results.json")
     require(results["commit"] == commit and results["executableSha256"] == digest,
             "Desktop evidence is for a different commit or EXE")
     require(results.get("fatalError") is None, "Fatal desktop test error")
+    require(results.get("buttonCount", 1) == button_count, "Wrong button count")
     require(not any(case["status"] == "failed" for case in results["cases"]), "A real-app case failed")
     for app in apps:
         for mode in ("normal", "maximized", "restored-narrow"):
@@ -81,7 +94,12 @@ def verify_cases(folder: Path, commit: str, digest: str, apps: tuple[str, ...], 
                 require(len(errors) == 3 and all(abs(e) <= 0.5 for e in errors),
                         f"Caption center mismatch: {label}")
                 require(case["caption"]["Dpi"] == dpi, f"Actual window DPI mismatch: {label}")
-            require(case["hitPoints"] == 5 and case["stableSamples"] == 8, f"Incomplete probes: {label}")
+            require(case["hitPoints"] == 5 * button_count and case["stableSamples"] == 8, f"Incomplete probes: {label}")
+            if button_count == 2:
+                cells = case.get("buttonPixels", [])
+                require(len(cells) == 2 and {c["part"] for c in cells} == {0, 1}, f"Missing button pixels: {label}")
+                require(all(c["glyph"]["Changed"] >= 6 and c["hover"]["Changed"] >= 6 for c in cells), f"One paired button is invisible: {label}")
+                require(all(c.get("hoverSamples", 0) >= 3 and c.get("hoverPresence", {}).get("Changed", 0) >= 6 for c in cells), f"Paired hover was not visibly stable: {label}")
             require(case["pixelGlyph"]["Changed"] >= 6 and case["pixelHover"]["Changed"] >= 6,
                     f"Rendering not observed: {label}")
 

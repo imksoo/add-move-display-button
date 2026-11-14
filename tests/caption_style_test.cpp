@@ -2,6 +2,7 @@
 #include "win32_helpers.hpp"
 #include <algorithm>
 #include <chrono>
+#include <commctrl.h>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -60,11 +61,14 @@ LRESULT CALLBACK fixture_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
 struct ApplicationProcess {
     win32::UniqueHandle process, thread;
     DWORD pid{};
-    HWND host{}, overlay{};
+    HWND host{}, overlay{}, tooltip{};
     bool stopped = false;
 
-    explicit ApplicationProcess(const std::wstring& exe) {
+    explicit ApplicationProcess(const std::wstring& exe, bool pair) {
         auto command = L"\"" + exe + L"\" --show-on-single-monitor";
+        if (pair) {
+            command += L" --preview-two-buttons";
+        }
         STARTUPINFOW startup{};
         startup.cb = sizeof(startup);
         PROCESS_INFORMATION info{};
@@ -89,6 +93,10 @@ struct ApplicationProcess {
                     }
                     if (std::wstring_view(name) == L"MoveToMonitorButton.Overlay.v1") {
                         app.overlay = hwnd;
+                    }
+                    if (std::wstring_view(name) == TOOLTIPS_CLASSW &&
+                        GetWindow(hwnd, GW_OWNER) == app.overlay) {
+                        app.tooltip = hwnd;
                     }
                 }
                 return TRUE;
@@ -192,7 +200,8 @@ void pixel_tests() {
 
 int wmain(int argc, wchar_t** argv) {
     try {
-        CHECK(argc == 2);
+        CHECK(argc == 2 || argc == 3);
+        const int buttonCount = argc == 3 ? 2 : 1;
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         pixel_tests();
         const auto module = GetModuleHandleW(nullptr);
@@ -230,8 +239,8 @@ int wmain(int argc, wchar_t** argv) {
         monitors.items[0].info.rcWork = mi.rcWork;
         monitors.items[0].dpi = GetDpiForWindow(fixture.get());
         bool resolving = false;
-        auto placement = find_button_placement(identify(fixture.get()),
-                                               {monitors, nullptr, nullptr, resolving, false});
+        auto placement = find_button_placement(
+            identify(fixture.get()), {monitors, nullptr, nullptr, resolving, false, buttonCount});
         const auto printRect = [](const char* label, const RECT& r) {
             std::cout << label << ": " << r.left << ',' << r.top << " - " << r.right << ','
                       << r.bottom << '\n';
@@ -271,20 +280,22 @@ int wmain(int argc, wchar_t** argv) {
         // Require measurement matching on a real default Win32 caption, not only mocks.
         CHECK(placement.diagnosis.matchedSize);
         const RECT expected = *placement.bounds;
-        CHECK(expected.right - expected.left == title.rgrect[2].right - title.rgrect[2].left);
+        CHECK(expected.right - expected.left ==
+              buttonCount * (title.rgrect[2].right - title.rgrect[2].left));
         CHECK(expected.top == title.rgrect[2].top && expected.bottom == title.rgrect[2].bottom);
         // The narrow native top-edge allowance must not turn a whole client,
         // resize surface or corner into a safe caption. Use real window callbacks.
         for (const LRESULT rejected : {HTCLIENT, HTTOP, HTTOPLEFT}) {
             forcedHit = rejected;
-            const auto rejectedPlacement = find_button_placement(
-                identify(fixture.get()), {monitors, nullptr, nullptr, resolving, false});
+            const auto rejectedPlacement =
+                find_button_placement(identify(fixture.get()),
+                                      {monitors, nullptr, nullptr, resolving, false, buttonCount});
             CHECK(!rejectedPlacement.bounds);
             CHECK(!rejectedPlacement.diagnosis.matchedSize);
         }
         forcedHit = HTNOWHERE;
         {
-            ApplicationProcess app(argv[1]);
+            ApplicationProcess app(argv[1], buttonCount == 2);
             for (int i = 0; i < 50; ++i) {
                 pump(100);
                 app.locate();
@@ -313,6 +324,18 @@ int wmain(int argc, wchar_t** argv) {
             // target. This tests the REAL Windows hit test for the actual EXE.
             const POINT corner{actual.left + 3, actual.top + 3};
             CHECK(WindowFromPoint(corner) == app.overlay);
+            for (int part = 0; part < buttonCount; ++part) {
+                const int left = actual.left + part * (actual.right - actual.left) / buttonCount;
+                const int right = left + (actual.right - actual.left) / buttonCount;
+                const POINT probes[] = {{left + 3, actual.top + 3},
+                                        {right - 4, actual.top + 3},
+                                        {left + 3, actual.bottom - 4},
+                                        {right - 4, actual.bottom - 4},
+                                        {(left + right) / 2, (actual.top + actual.bottom) / 2}};
+                for (const auto point : probes) {
+                    CHECK(WindowFromPoint(point) == app.overlay);
+                }
+            }
             DWORD_PTR answer = 0;
             CHECK(SendMessageTimeoutW(app.overlay, WM_NCHITTEST, 0, MAKELPARAM(corner.x, corner.y),
                                       SMTO_ABORTIFHUNG | SMTO_BLOCK, 1000, &answer));
@@ -327,6 +350,28 @@ int wmain(int argc, wchar_t** argv) {
             SetCursorPos(corner.x, corner.y);
             pump(300);
             screenshot_fixture(fixture.get(), L"caption-native-hover.bmp");
+            app.locate();
+            CHECK(app.tooltip);
+            DWORD_PTR tools = 0;
+            CHECK(SendMessageTimeoutW(app.tooltip, TTM_GETTOOLCOUNT, 0, 0,
+                                      SMTO_ABORTIFHUNG | SMTO_BLOCK, 1000, &tools));
+            CHECK(tools == static_cast<DWORD_PTR>(buttonCount));
+            for (int part = 0; part < buttonCount; ++part) {
+                const POINT hover{actual.left + (2 * part + 1) * (actual.right - actual.left) /
+                                                    (2 * buttonCount),
+                                  (actual.top + actual.bottom) / 2};
+                SetCursorPos(hover.x, hover.y);
+                for (int i = 0; i < 60 && !IsWindowVisible(app.tooltip); ++i) {
+                    pump(50);
+                }
+                CHECK(IsWindowVisible(app.tooltip));
+                RECT tip{}, overlap{};
+                CHECK(GetWindowRect(app.tooltip, &tip));
+                CHECK(!IntersectRect(&overlap, &actual, &tip));
+                CHECK(WindowFromPoint(hover) == app.overlay);
+                screenshot_fixture(fixture.get(), part ? L"caption-tooltip-next.bmp"
+                                                       : L"caption-tooltip-previous.bmp");
+            }
             SetCursorPos(oldCursor.x, oldCursor.y);
             CHECK(app.stop());
         }

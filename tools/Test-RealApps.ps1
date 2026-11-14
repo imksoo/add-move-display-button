@@ -6,9 +6,11 @@ param(
     [switch]$RequireWindows11Coverage,
     [switch]$SettingsOnly,
     [switch]$ChatGPTOnly,
+    [switch]$PairedButtons,
     [int]$ExpectedDpi = 0
 )
 $ErrorActionPreference = 'Stop'
+$buttonCount = if ($PairedButtons) { 2 } else { 1 }
 Set-StrictMode -Version Latest
 # Only capture a disposable hosted desktop by default. Never silently capture a user's session.
 if (-not $AllowDesktopCapture -and $env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
@@ -36,6 +38,7 @@ $os = Get-CimInstance Win32_OperatingSystem
 $packages = @(Get-AppxPackage | Where-Object { $_.Name -match 'WindowsNotepad|WindowsStore|WindowsCalculator|immersivecontrolpanel|^OpenAI\.' })
 $evidence = [ordered]@{
     schemaVersion = 1
+    buttonCount = $buttonCount
     commit = $env:GITHUB_SHA
     executableSha256 = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
     os = $os.Caption; build = $os.BuildNumber
@@ -171,7 +174,9 @@ function Test-WindowState($spec,$target,[string]$mode) {
         $hover = Join-Path $out "$prefix-hover.png"
         $capture = [DesktopProbe]::CaptureCaption($hwnd,$baseline)
         $result.screenshots += [IO.Path]::GetFileName($baseline)
-        $app = Start-Process -FilePath $exe -ArgumentList '--show-on-single-monitor' -PassThru
+        $arguments = '--show-on-single-monitor'
+        if ($PairedButtons) { $arguments += ' --preview-two-buttons' }
+        $app = Start-Process -FilePath $exe -ArgumentList $arguments -PassThru
         $deadline = [DateTime]::UtcNow.AddSeconds(12)
         $overlay = $null; $candidate = $null; $settled = 0
         do {
@@ -210,19 +215,26 @@ function Test-WindowState($spec,$target,[string]$mode) {
             if ($spec.RequireNativeMatch) { Require ($validButtons.Count -gt 0) 'Required native caption measurement is empty.' }
             if ($validButtons.Count) {
                 $reference = $caption.Title.Buttons[$validButtons[0]]
-                $matched = $bounds.Width -eq $reference.Width -and $bounds.Top -eq $reference.Top -and $bounds.Bottom -eq $reference.Bottom
+                $matched = $bounds.Width -eq ($reference.Width*$buttonCount) -and $bounds.Top -eq $reference.Top -and $bounds.Bottom -eq $reference.Bottom
                 $result.nativeSizeMatched = $matched
                 if ($spec.RequireNativeMatch) { Require $matched 'Overlay did not match the required native caption-button width and vertical alignment.' }
             }
         }
         $oh = [IntPtr]$overlay.Handle
-        $points = @(
-            [DesktopProbe+Point]::new(($bounds.Left+3),($bounds.Top+3)),
-            [DesktopProbe+Point]::new(($bounds.Right-4),($bounds.Top+3)),
-            [DesktopProbe+Point]::new(($bounds.Left+3),($bounds.Bottom-4)),
-            [DesktopProbe+Point]::new(($bounds.Right-4),($bounds.Bottom-4)),
-            [DesktopProbe+Point]::new(($bounds.Left+[int]($bounds.Width/2)),($bounds.Top+[int]($bounds.Height/2)))
-        )
+        $cells = @(for ($part=0; $part -lt $buttonCount; $part++) {
+            $cell = [DesktopProbe+Rect]::new()
+            $cell.Left=$bounds.Left+[int]($bounds.Width*$part/$buttonCount)
+            $cell.Right=$bounds.Left+[int]($bounds.Width*($part+1)/$buttonCount)
+            $cell.Top=$bounds.Top; $cell.Bottom=$bounds.Bottom
+            $cell
+        })
+        $points = @(foreach ($cell in $cells) {
+            [DesktopProbe+Point]::new(($cell.Left+3),($cell.Top+3))
+            [DesktopProbe+Point]::new(($cell.Right-4),($cell.Top+3))
+            [DesktopProbe+Point]::new(($cell.Left+3),($cell.Bottom-4))
+            [DesktopProbe+Point]::new(($cell.Right-4),($cell.Bottom-4))
+            [DesktopProbe+Point]::new(($cell.Left+[int]($cell.Width/2)),($cell.Top+[int]($cell.Height/2)))
+        })
         foreach ($point in $points) {
             $hitWindow=[DesktopProbe]::WindowFromPoint($point)
             $result.hitObservations += [pscustomobject]@{ point=$point; window=[DesktopProbe]::Describe($hitWindow); overlayBounds=[DesktopProbe]::Bounds($oh) }
@@ -237,22 +249,45 @@ function Test-WindowState($spec,$target,[string]$mode) {
             $result.stableSamples++
         }
         $null = [DesktopProbe]::CaptureCaption($hwnd,$normal)
-        $glyph = [DesktopProbe]::Compare($baseline,$normal,$bounds,$capture)
-        $result.pixelGlyph = $glyph
-        Require ($glyph.Changed -ge 6) 'No visible move glyph in the actual screen pixels.'
-        $null = [DesktopProbe]::SetCursorPos($points[4].X,$points[4].Y)
-        Start-Sleep -Milliseconds 450
-        $null = [DesktopProbe]::CaptureCaption($hwnd,$hover)
-        $result.screenshots += [IO.Path]::GetFileName($hover)
-        $hot = [DesktopProbe]::Compare($normal,$hover,$bounds,$capture)
-        $result.pixelHover = $hot
-        Require ($hot.Changed -ge 6) 'Hover did not visibly change the overlay.'
+        $result['buttonPixels'] = @()
+        for ($part=0; $part -lt $buttonCount; $part++) {
+            $cell = $cells[$part]
+            $glyph = [DesktopProbe]::Compare($baseline,$normal,$cell,$capture)
+            Require ($glyph.Changed -ge 6) "No visible glyph in button $part."
+            $center=$points[5*$part+4]
+            $null=[DesktopProbe]::SetCursorPos($center.X,$center.Y)
+            # Observe beyond the default tooltip delay, including its effect on
+            # visibility and input. A brief pre-tooltip hover is insufficient.
+            Start-Sleep -Milliseconds 750
+            $hotFile = Join-Path $out "$prefix-hover-$part.png"
+            $hoverDeadline=[DateTime]::UtcNow.AddSeconds(2)
+            $hoverSamples=0
+            do {
+                Start-Sleep -Milliseconds 150
+                $null=[DesktopProbe]::CaptureCaption($hwnd,$hotFile)
+                $hot=[DesktopProbe]::Compare($normal,$hotFile,$cell,$capture)
+                $present=[DesktopProbe]::Compare($baseline,$hotFile,$cell,$capture)
+                $validHover=[DesktopProbe]::IsWindowVisible($oh) -and [DesktopProbe]::Bounds($oh).Same($bounds) -and [DesktopProbe]::WindowFromPoint($center) -eq $oh -and $hot.Changed -ge 6 -and $present.Changed -ge 6
+                if ($validHover) { $hoverSamples++ } else { $hoverSamples=0 }
+            } while ($hoverSamples -lt 3 -and [DateTime]::UtcNow -lt $hoverDeadline)
+            $result.screenshots += [IO.Path]::GetFileName($hotFile)
+            Require ($hoverSamples -ge 3) "Hover did not remain visibly changed on button $part."
+            $result.buttonPixels += [pscustomobject]@{ part=$part; glyph=$glyph; hover=$hot; hoverPresence=$present; hoverSamples=$hoverSamples }
+        }
+        $result.pixelGlyph=$result.buttonPixels[0].glyph
+        $result.pixelHover=$result.buttonPixels[0].hover
         Require ([DesktopProbe]::Responsive($oh)) 'Overlay message loop is unresponsive.'
         $result.status = 'passed'
     } catch {
         $result.reason = $_.Exception.Message
         try {
             $result.failureContext=[pscustomobject]@{ input=[DesktopProbe]::InputSettings(); target=[DesktopProbe]::Describe($hwnd); windows=[DesktopProbe]::Windows() }
+            if ($null -ne $app) {
+                $hidden=@([DesktopProbe]::Windows() | Where-Object { $_.Pid -eq $app.Id -and $_.Class -eq 'MoveToMonitorButton.Overlay.v1' })
+                $result['placementDiagnosis']=@($hidden | ForEach-Object {
+                    [pscustomobject]@{ visible=$_.Visible; reason=[DesktopProbe]::GetProp([IntPtr]$_.Handle,'MTMB.PlacementReason').ToInt64(); error=[DesktopProbe]::GetProp([IntPtr]$_.Handle,'MTMB.PlacementError').ToInt64(); probes=[DesktopProbe]::GetProp([IntPtr]$_.Handle,'MTMB.PlacementProbes').ToInt64(); hit=[DesktopProbe]::GetProp([IntPtr]$_.Handle,'MTMB.PlacementHit').ToInt64() }
+                })
+            }
             [DesktopProbe]::CaptureScreen((Join-Path $out "$($spec.Name)-$mode-failure.png"))
         } catch { $result.reason += " Diagnostic capture: $($_.Exception.Message)" }
     }

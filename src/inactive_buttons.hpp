@@ -1,5 +1,6 @@
 #pragma once
 #include "caption_appearance.hpp"
+#include "caption_tooltip.hpp"
 #include "win32_helpers.hpp"
 #include <memory>
 #include <unordered_map>
@@ -23,6 +24,11 @@ private:
         Identity target;
         win32::UniqueWindow window;
         CaptionPalette palette;
+        CaptionTooltip tooltip;
+        int count = 1, hoverPart = -1, pressedPart = -1;
+
+        Button(InactiveButtons& owner, Identity id) : manager(owner), target(id) {}
+
         bool paletteValid = false;
         bool hover = false, pressed = false;
         UINT dpi = 0;

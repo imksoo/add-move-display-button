@@ -37,7 +37,7 @@ jobs:
           Copy-Item build/Release/MoveToMonitorButton.exe,build/Release/build-info.json,build/startup-result.json,build/test-results.xml,LICENSE dist/
           Copy-Item docs/PORTABLE.md dist/README.md
           New-Item -ItemType Directory -Force dist/test-programs | Out-Null
-          Copy-Item build/Release/inactive_overlay_test.exe,build/Release/hosted_display_scale.exe dist/test-programs/
+          Copy-Item build/Release/inactive_overlay_test.exe,build/Release/hosted_display_scale.exe,build/Release/multi_monitor_test.exe dist/test-programs/
           $hash = (Get-FileHash dist/MoveToMonitorButton.exe -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  MoveToMonitorButton.exe" | Set-Content dist/SHA256SUMS.txt -Encoding ascii
           $metadata = Get-Content dist/build-info.json -Raw | ConvertFrom-Json
@@ -143,6 +143,9 @@ jobs:
       - name: Test real application caption pixels, geometry, hover, and stability
         shell: powershell
         run: ./tools/Test-RealApps.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -OutputDirectory real-app-evidence -RequireWindows11Coverage
+      - name: Verify paired buttons on Settings at 100 percent
+        shell: powershell
+        run: ./tools/Test-RealApps.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -OutputDirectory real-app-evidence/paired -RequireWindows11Coverage -SettingsOnly -PairedButtons -ExpectedDpi 96
       - name: Test the actual EXE on inactive windows and first-click menus
         shell: powershell
         run: ./tools/Test-InactiveWindows.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -TestPath app-under-test/test-programs/inactive_overlay_test.exe -OutputDirectory real-app-evidence
@@ -181,6 +184,9 @@ jobs:
       - name: Verify actual ChatGPT captions at 100 percent
         shell: powershell
         run: ./tools/Test-RealApps.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -OutputDirectory chatgpt-evidence -RequireWindows11Coverage -ChatGPTOnly -ExpectedDpi 96
+      - name: Verify paired ChatGPT buttons at 100 percent
+        shell: powershell
+        run: ./tools/Test-RealApps.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -OutputDirectory chatgpt-evidence/paired -RequireWindows11Coverage -ChatGPTOnly -PairedButtons -ExpectedDpi 96
       - name: Verify actual ChatGPT captions at 150 and 200 percent
         shell: powershell
         run: ./tools/Test-SettingsDpi.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -DisplaySetupPath app-under-test/test-programs/hosted_display_scale.exe -OutputDirectory chatgpt-evidence -ChatGPTOnly
@@ -192,9 +198,36 @@ jobs:
           path: chatgpt-evidence/
           if-no-files-found: warn
           retention-days: 14
+  multi-monitor:
+    name: Actual signed-driver multi-monitor navigation
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: real-app-test-executable
+          path: app-under-test
+      - name: Verify visible desktop with exact sentinel colors
+        shell: powershell
+        run: ./tools/Test-DesktopReadiness.ps1 -OutputDirectory multi-monitor-evidence
+      - name: Install pinned signed driver and exercise actual extended desktop
+        shell: powershell
+        run: ./tools/Test-MultiMonitor.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -TestPath app-under-test/test-programs/multi_monitor_test.exe
+      - name: Keep evidence including failures
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: real-app-evidence-multi-monitor
+          path: multi-monitor-evidence/
+          if-no-files-found: warn
+          retention-days: 14
   tested-release:
     name: Package the EXE verified on Server and Windows 11 desktops
-    needs: [build, desktop, sdk-checks, windows11-diagnostic, custom-caption-apps]
+    needs: [build, desktop, sdk-checks, windows11-diagnostic, custom-caption-apps, multi-monitor]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c

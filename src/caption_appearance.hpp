@@ -22,4 +22,7 @@ CaptionPalette query_caption_palette(HWND overlay, Identity target, RECT referen
 std::vector<std::uint32_t> caption_pixels(int width, int height, UINT dpi,
                                           const CaptionPalette& palette, bool hot, bool pressed);
 bool render_caption_button(HWND overlay, const CaptionPalette& palette, bool hot, bool pressed);
+bool render_caption_buttons(HWND overlay, const CaptionPalette& palette, int count, int hotPart,
+                            int pressedPart);
+int caption_part(HWND overlay, POINT clientPoint, int count);
 } // namespace mtmb

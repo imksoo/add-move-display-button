@@ -1,6 +1,7 @@
 // Run the production controller against deterministic Win32 doubles on Linux.
 // This is NOT a Windows runtime/integration test. Unexpected API use aborts.
 #include "app_test_access.hpp"
+#include "monitor_order.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include <cwchar>
@@ -37,6 +38,7 @@ int titlebarQueries = 0;
 HMONITOR left = reinterpret_cast<HMONITOR>(0x1000), right = reinterpret_cast<HMONITOR>(0x2000);
 RECT normal{100, 100, 900, 700}, outer = normal, overlay{};
 HWND foreground = target, captured;
+POINT cursor{};
 bool exists = true, visible = true, enabled = true, zoomed, iconic, hung, cloaked;
 bool buttonVisible, hitClient, failPosition, deferPosition;
 DWORD guiFlags, lastError, messageError;
@@ -88,6 +90,7 @@ void reset() {
     overlay = {};
     foreground = target;
     captured = nullptr;
+    cursor = {};
     exists = true;
     visible = true;
     enabled = true;
@@ -221,6 +224,27 @@ BOOL WINAPI UnionRect(RECT* out, const RECT* a, const RECT* b) {
 
 BOOL WINAPI EqualRect(const RECT* a, const RECT* b) {
     return a->left == b->left && a->top == b->top && a->right == b->right && a->bottom == b->bottom;
+}
+
+BOOL WINAPI GetCursorPos(POINT* point) {
+    *point = fake::cursor;
+    return TRUE;
+}
+
+BOOL WINAPI ScreenToClient(HWND, POINT* point) {
+    point->x -= fake::overlay.left;
+    point->y -= fake::overlay.top;
+    return TRUE;
+}
+
+BOOL WINAPI GetClientRect(HWND, RECT* bounds) {
+    *bounds = {0, 0, fake::overlay.right - fake::overlay.left,
+               fake::overlay.bottom - fake::overlay.top};
+    return TRUE;
+}
+
+BOOL WINAPI TrackMouseEvent(TRACKMOUSEEVENT*) {
+    return TRUE;
 }
 
 BOOL WINAPI PtInRect(const RECT* r, POINT p) {
@@ -1006,6 +1030,64 @@ int main() {
     fake::refresh();
     CHECK(!fake::buttonVisible);
 
+    // A stationary cursor must recover its cell after a hide/re-show, and a
+    // delayed leave from hit-test probing must not clear the current hot cell.
+    fake::reset();
+    fake::state().previewTwoButtons = true;
+    fake::state().showOnSingleMonitor = true;
+    fake::refresh();
+    CHECK(fake::buttonVisible && fake::state().buttonCount == 2);
+    for (const int part : {0, 1}) {
+        fake::cursor = {fake::overlay.left +
+                            (fake::overlay.right - fake::overlay.left) * (2 * part + 1) / 4,
+                        (fake::overlay.top + fake::overlay.bottom) / 2};
+        fake::state().hoverPart = -1;
+        fake::state().hover = false;
+        fake::buttonVisible = false;
+        fake::refresh();
+        CHECK(fake::buttonVisible && fake::state().hoverPart == part);
+        ApplicationTestAccess::button(*fake::application, fake::button, WM_MOUSELEAVE, 0, 0);
+        fake::refresh();
+        CHECK(fake::state().hover && fake::state().hoverPart == part);
+    }
+    fake::cursor = {};
+    ApplicationTestAccess::button(*fake::application, fake::button, WM_MOUSELEAVE, 0, 0);
+    CHECK(!fake::state().hover && fake::state().hoverPart == -1);
+
+    // A delayed down still belongs to its event's cell, even if the cursor is
+    // already over the other cell when the UI thread processes it.
+    const int width = fake::overlay.right - fake::overlay.left;
+    const int height = fake::overlay.bottom - fake::overlay.top;
+    fake::cursor = {fake::overlay.left + 3 * width / 4, fake::overlay.top + height / 2};
+    ApplicationTestAccess::button(*fake::application, fake::button, WM_LBUTTONDOWN, 0,
+                                  MAKELPARAM(width / 4, height / 2));
+    CHECK(fake::state().pressed && fake::state().pressedPart == 0);
+    ApplicationTestAccess::button(*fake::application, fake::button, WM_LBUTTONUP, 0,
+                                  MAKELPARAM(3 * width / 4, height / 2));
+    CHECK(!fake::state().move.active() && !fake::state().pressed);
+    const auto outside = win32::mouse_message_point(MAKELPARAM(-4, -7));
+    CHECK(outside.x == -4 && outside.y == -7);
+
+    for (const int direction : {-1, 1}) {
+        fake::reset();
+        auto& displays = fake::state().monitors;
+        displays.count = 3;
+        displays.items[0].number = 9;
+        displays.items[1].number = 1;
+        displays.items[2] = displays.items[1];
+        displays.items[2].handle = reinterpret_cast<HMONITOR>(0x3000);
+        displays.items[2].number = 4;
+        StringCchCopyW(displays.items[2].info.szDevice, 32, L"DISPLAY3");
+        sort_monitors(displays);
+        CHECK(displays.items[0].number == 1 && displays.items[1].number == 4 &&
+              displays.items[2].number == 9);
+        const auto labels =
+            ApplicationTestAccess::labels(*fake::application, identify(fake::target));
+        CHECK(labels[0] == L"前: 画面 4 へ移動");
+        CHECK(labels[1] == L"次: 画面 1 へ移動");
+        ApplicationTestAccess::move(*fake::application, identify(fake::target), direction);
+        CHECK(fake::state().move.destination == (direction < 0 ? L"DISPLAY3" : L"DISPLAY2"));
+    }
     fake::application.reset();
     std::cout << "PASS: " << checks
               << " controller checks against deterministic Win32 doubles (NOT Windows runtime)\n";

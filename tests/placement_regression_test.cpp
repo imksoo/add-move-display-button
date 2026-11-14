@@ -74,8 +74,9 @@ void setup(bool zoomed, UINT scale = 1) {
     multiply(monitors.items[0].info.rcWork);
 }
 
-PlacementResult search() {
-    return find_button_placement(identify(target), {monitors, nullptr, nullptr, resolving, false});
+PlacementResult search(int count = 1) {
+    return find_button_placement(identify(target),
+                                 {monitors, nullptr, nullptr, resolving, false, count});
 }
 } // namespace
 
@@ -304,5 +305,32 @@ int main() {
     const auto lower = search();
     CHECK(lower.bounds && lower.diagnosis.compact && !lower.diagnosis.estimated);
     CHECK(lower.bounds->top == controls.top + 8); // centered candidate intersects HTCLIENT
+    for (const UINT scale : {1U, 2U}) {
+        setup(false, scale);
+        const auto single = search();
+        const auto pair = search(2);
+        CHECK(single.bounds && pair.bounds);
+        CHECK(pair.bounds->right == single.bounds->right);
+        CHECK(pair.bounds->top == single.bounds->top &&
+              pair.bounds->bottom == single.bounds->bottom);
+        CHECK(pair.bounds->right - pair.bounds->left ==
+              2 * (single.bounds->right - single.bounds->left));
+        CHECK(pair.diagnosis.probes >= single.diagnosis.probes + 5);
+        captionSlot = *single.bounds;
+        CHECK(!search(2).bounds); // Never accept an unchecked second button.
+    }
+    for (const UINT scale : {1U, 2U}) {
+        setup(false, scale);
+        title = {};
+        upperHit = HTCAPTION;
+        // Settings exposes ~50 DIP, reduced by the conservative control gap.
+        captionSlot = {controls.left - dip(44, dpi), controls.top, controls.left - dip(3, dpi),
+                       controls.bottom};
+        const auto pair = search(2);
+        CHECK(pair.bounds);
+        CHECK(pair.bounds->right - pair.bounds->left == dip(32, dpi));
+        CHECK(pair.bounds->top + pair.bounds->bottom == controls.top + controls.bottom);
+        CHECK(pair.diagnosis.probes >= 10);
+    }
     std::cout << "PASS: " << checks << " caption-region regression checks (API doubles)\n";
 }

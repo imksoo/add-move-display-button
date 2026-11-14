@@ -9,4 +9,16 @@ CaptionPalette query_caption_palette(HWND, Identity, RECT, UINT, const CaptionPa
 bool render_caption_button(HWND, const CaptionPalette&, bool, bool) {
     return true;
 }
+
+bool render_caption_buttons(HWND, const CaptionPalette&, int, int, int) {
+    return true;
+}
+
+int caption_part(HWND overlay, POINT point, int count) {
+    RECT r{};
+    if (!GetClientRect(overlay, &r) || !PtInRect(&r, point) || r.right <= 0) {
+        return -1;
+    }
+    return count == 2 && point.x >= r.right / 2 ? 1 : 0;
+}
 } // namespace mtmb

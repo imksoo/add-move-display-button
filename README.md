@@ -10,13 +10,15 @@ Working across two or more monitors? Keep a document beside your browser, move a
 
 ![MoveToMonitorButton beside the minimize, maximize and close controls in Windows Settings at 200% scaling](docs/images/settings-200-percent.png)
 
-*Windows Settings at 200% scaling. The monitor-and-arrow icon to the left of Minimize is the added button. This is a capture of the actual Windows application.*
+*Single-button layout for two displays. Windows Settings at 200% scaling. The monitor-and-arrow icon to the left of Minimize is the added button. This is a capture of the actual Windows application.*
 
 ## A familiar place for one more useful action
 
 | What you want to do | How it works |
 |---|---|
-| Move a window to your next display | Left-click the added button. |
+| Switch between two displays | Left-click the single added button. |
+| Navigate three or more displays | Use the left button for the previous number, or the right button for the next. Both wrap around. |
+| Check the destination | Hover to see the destination display number. |
 | Choose a specific display | Right-click the button and select a destination. |
 | Move a maximized window | The app restores it, moves it, and maximizes it again. |
 | Work with a window in the background | Visible, unobstructed title bars can show their own button. Hovering does not bring the window to the front. |
@@ -26,6 +28,22 @@ Working across two or more monitors? Keep a document beside your browser, move a
 - **Portable:** download one EXE and run it. No installer is required.
 - **Fits modern desktops:** supports standard title bars and compatible custom frames; placement accounts for display scaling.
 - **Free and open source:** MIT licensed, with no account required by this utility.
+
+## Previous and next, in display-number order
+
+With **three or more extended displays**, two buttons appear: previous number and next number. With two displays, one button is enough because both directions lead to the same destination. Movement follows ascending display numbers, independently of their physical left-to-right arrangement.
+
+| Current display | Left button: previous | Right button: next |
+|---|---|---|
+| 1 | 3 | 2 |
+| 2 | 1 | 3 |
+| 3 | 2 | 1 |
+
+Where title-bar space is narrow, the pair uses compact widths while keeping the same vertical center. If a safe region cannot be verified for both buttons, use the tray menu.
+
+Gaps are preserved: displays 1, 3, and 5 cycle in that order. Disconnected and disabled desktops are excluded after a topology refresh.
+
+Automatic numbering uses Windows display information, but some drivers and configurations differ from Settings → Display → Identify. To match those systems, right-click a button → **「画面番号をWindowsに合わせる…」** (“Match Windows display numbers”), select the item marked **「このウィンドウの画面」** (“this window's display”), and choose the number shown by Windows Identify. The correction persists and applies to both buttons, destination menus, and tooltips. Choosing a number already in use swaps the two. This changes only the utility's labels, not Windows settings.
 
 ## Works with compatible custom title bars
 
@@ -58,7 +76,7 @@ Choose **「終了」** (“Exit”) from the old version's tray menu before rep
 
 ## Compatibility and transparency
 
-Windows Settings and the ChatGPT title bar are checked at **100%, 150%, and 200% scaling**, including normal, maximized, and restored windows. Other real-app checks include Explorer, Notepad, Chrome, Microsoft Store, and Calculator. The exact tested app versions and results are recorded in [GitHub Actions](https://github.com/imksoo/add-move-display-button/actions/workflows/real-apps.yml).
+Both the single and paired buttons on Windows Settings and ChatGPT are checked at **100%, 150%, and 200% scaling**, including normal, maximized, and restored windows. Other real-app checks include Explorer, Notepad, Chrome, Microsoft Store, and Calculator. The exact tested app versions and results are recorded in [GitHub Actions](https://github.com/imksoo/add-move-display-button/actions/workflows/real-apps.yml).
 
 These tests cover real application windows on disposable desktops. ChatGPT is tested before sign-in. Physical moves between monitors with different DPI settings and every possible app layout are not covered by those CI checks.
 

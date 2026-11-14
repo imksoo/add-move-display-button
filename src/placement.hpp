@@ -8,7 +8,7 @@
 
 namespace mtmb {
 inline constexpr wchar_t kAppName[] = L"MoveToMonitorButton";
-inline constexpr wchar_t kVersion[] = L"0.1.11";
+inline constexpr wchar_t kVersion[] = L"0.1.12";
 inline constexpr int kMaxMonitors = 64;
 
 struct Identity {
@@ -27,6 +27,9 @@ struct Monitor {
     HMONITOR handle{};
     MONITORINFOEXW info{};
     UINT dpi{};
+    int number = 0;
+    std::wstring identity, name;
+    bool numberOverride = false;
 };
 
 struct MonitorSet {
@@ -88,6 +91,7 @@ struct PlacementContext {
     // The owning UI callback consults this only during synchronous WindowFromPoint.
     bool& resolvingInputWindow;
     bool allowEstimate = false;
+    int buttonCount = 1;
 };
 
 PlacementResult find_button_placement(Identity target, const PlacementContext& context);
