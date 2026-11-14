@@ -89,6 +89,7 @@ struct Options {
     bool quit = false;
     bool help = false;
     bool showOnSingleMonitor = false;
+    bool previewTwoButtons = false;
 };
 
 inline Options parse_options(LPCWSTR commandLine) {
@@ -109,6 +110,8 @@ inline Options parse_options(LPCWSTR commandLine) {
             options.help = true;
         } else if (argument == L"--show-on-single-monitor") {
             options.showOnSingleMonitor = true;
+        } else if (argument == L"--preview-two-buttons") {
+            options.previewTwoButtons = true;
         }
     }
     return options;

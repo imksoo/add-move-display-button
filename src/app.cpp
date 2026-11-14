@@ -1,4 +1,5 @@
 #include "app.hpp"
+#include "monitor_order.hpp"
 #if defined(_WIN32)
 #include "startup.hpp"
 #endif
@@ -14,7 +15,7 @@ constexpr UINT_PTR kRefreshTimer = 1, kFallbackTimer = 2, kMoveTimer = 3;
 constexpr size_t kMaxExclusions = 64;
 constexpr UINT kMonitorCommand = 100, kPauseCommand = 1000, kExcludeCommand = 1001,
                kResetCommand = 1002, kAboutCommand = 1003, kExitCommand = 1004,
-               kDiagnoseCommand = 1005, kCompatibilityCommand = 1006;
+               kDiagnoseCommand = 1005, kCompatibilityCommand = 1006, kNumberCommand = 1008;
 #if defined(_WIN32)
 constexpr UINT kStartupCommand = 1007;
 #endif
@@ -36,6 +37,8 @@ void Application::request_refresh() {
 }
 
 void Application::hide_button() {
+    state_.hoverPart = state_.pressedPart = -1;
+    state_.tooltip.hide();
     state_.hover = false;
     state_.pressed = false;
     state_.pressedTarget = {};
@@ -75,17 +78,16 @@ UINT Application::probe_dpi(const RECT& monitor) {
 }
 
 void Application::refresh_monitors() {
+    hide_button();
+    if (inactive_) {
+        inactive_->hide_all();
+    }
     state_.topologyDirty = false;
     state_.monitors.count = 0;
     if (!EnumDisplayMonitors(nullptr, nullptr, enum_monitor, reinterpret_cast<LPARAM>(this))) {
         state_.monitors.count = 0;
     }
-    // Preserve left-to-right, then top-to-bottom order, including stable ties.
-    auto first = state_.monitors.items.begin();
-    std::stable_sort(first, first + state_.monitors.count, [](const Monitor& a, const Monitor& b) {
-        return std::tie(a.info.rcMonitor.left, a.info.rcMonitor.top) <
-               std::tie(b.info.rcMonitor.left, b.info.rcMonitor.top);
-    });
+    number_monitors(state_.monitors);
 }
 
 bool Application::eligible(Identity id) const {
@@ -252,7 +254,7 @@ void Application::start_move(Identity target, int destination) {
     }
 }
 
-void Application::move_next(Identity id) {
+void Application::move_next(Identity id, int direction) {
     if (state_.topologyDirty) {
         refresh_monitors();
     }
@@ -262,7 +264,105 @@ void Application::move_next(Identity id) {
         return;
     }
     const int current = monitor_index(MonitorFromWindow(id.hwnd, MONITOR_DEFAULTTONEAREST));
-    start_move(id, mtmb::next_index(current, state_.monitors.count));
+    start_move(id, mtmb::next_index(current, state_.monitors.count, direction));
+}
+
+int Application::button_count() const {
+    return state_.monitors.count >= 3 || state_.previewTwoButtons ? 2 : 1;
+}
+
+std::array<std::wstring, 2> Application::button_labels(Identity id) const {
+    std::array<std::wstring, 2> labels;
+    const int count = button_count();
+    const int current = monitor_index(MonitorFromWindow(id.hwnd, MONITOR_DEFAULTTONEAREST));
+    for (int part = 0; part < count; ++part) {
+        const int direction = count == 2 && part == 0 ? -1 : 1;
+        const int destination = next_index(current, state_.monitors.count, direction);
+        labels[part] = count == 2 ? (part == 0 ? L"前: " : L"次: ") : L"";
+        labels[part] +=
+            state_.monitors.count >= 2 && destination >= 0
+                ? L"画面 " + std::to_wstring(state_.monitors.items[destination].number) + L" へ移動"
+                : L"移動先のモニターがありません（表示プレビュー）";
+    }
+    return labels;
+}
+
+void Application::configure_monitor_numbers() {
+#if defined(_WIN32)
+    // Keep a device-name snapshot across each modal menu: topology may change
+    // while it is open. Corrections affect this app only, never Windows settings.
+    refresh_monitors();
+    win32::UniqueMenu menu{CreatePopupMenu()};
+    if (!menu) {
+        return;
+    }
+    AppendMenuW(menu.get(), MF_STRING | MF_GRAYED, 0, L"Windows「識別」の番号を各画面に設定");
+    std::array<std::wstring, kMaxMonitors> devices;
+    const int count = state_.monitors.count;
+    constexpr UINT base = 2000, reset = 7000;
+    for (int i = 0; i < count; ++i) {
+        const auto& monitor = state_.monitors.items[i];
+        devices[i] = monitor.info.szDevice;
+        win32::UniqueMenu numbers{CreatePopupMenu()};
+        if (!numbers) {
+            return;
+        }
+        for (int number = 1; number <= kMaxMonitors; ++number) {
+            const auto label = std::to_wstring(number);
+            AppendMenuW(numbers.get(),
+                        MF_STRING | (number == monitor.number ? MF_CHECKED : 0) |
+                            (number > 1 && (number - 1) % 16 == 0 ? MF_MENUBARBREAK : 0),
+                        base + i * kMaxMonitors + number - 1, label.c_str());
+        }
+        const auto label = monitor_label(monitor) + L" (" +
+                           std::to_wstring(monitor.info.rcMonitor.left) + L", " +
+                           std::to_wstring(monitor.info.rcMonitor.top) + L")";
+        if (!AppendMenuW(menu.get(), MF_POPUP | MF_STRING,
+                         reinterpret_cast<UINT_PTR>(numbers.get()), label.c_str())) {
+            return;
+        }
+        numbers.release(); // Parent menu owns its child.
+    }
+    AppendMenuW(menu.get(), MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu.get(), MF_STRING, reset, L"番号補正を解除して自動に戻す");
+    POINT cursor{};
+    GetCursorPos(&cursor);
+    const win32::ScopedFlag menuScope(state_.inMenu, true);
+    const HWND previous = GetForegroundWindow();
+    ShowWindow(state_.host.get(), SW_SHOWNOACTIVATE);
+    SetForegroundWindow(state_.host.get());
+    const UINT selected = static_cast<UINT>(TrackPopupMenuEx(
+        menu.get(), TPM_RETURNCMD | TPM_NONOTIFY, cursor.x, cursor.y, state_.host.get(), nullptr));
+    PostMessageW(state_.host.get(), WM_NULL, 0, 0);
+    if (GetForegroundWindow() == state_.host.get() && IsWindow(previous)) {
+        SetForegroundWindow(previous);
+    }
+    ShowWindow(state_.host.get(), SW_HIDE);
+    DWORD error = ERROR_SUCCESS;
+    if (selected == reset) {
+        error = reset_monitor_numbers();
+    } else if (selected >= base && selected < base + static_cast<UINT>(count * kMaxMonitors)) {
+        const int item = static_cast<int>(selected - base) / kMaxMonitors;
+        const int number = static_cast<int>(selected - base) % kMaxMonitors + 1;
+        refresh_monitors();
+        const int index = monitor_named(devices[item]);
+        if (index >= 0) {
+            const int old = state_.monitors.items[index].number;
+            for (int i = 0; i < state_.monitors.count; ++i) {
+                if (state_.monitors.items[i].number == number) {
+                    state_.monitors.items[i].number = old;
+                }
+            }
+            state_.monitors.items[index].number = number;
+            error = save_monitor_numbers(state_.monitors);
+        }
+    }
+    if (error != ERROR_SUCCESS) {
+        notify(L"画面番号の補正を保存できませんでした。");
+    }
+    state_.topologyDirty = true;
+    request_refresh();
+#endif
 }
 
 void Application::show_about() {
@@ -270,7 +370,8 @@ void Application::show_about() {
         std::wstring{kAppName} + L" " + kVersion +
         L" — MIT License\n\n"
         L"表示中のウィンドウに移動ボタンを重ねます（非アクティブも対象）。\n"
-        L"左クリック: 次のモニター / 右クリック: 移動先を選択\n\n"
+        L"2画面: 1ボタン / 3画面以上: 番号順の前・次の2ボタン（循環）\n"
+        L"右クリック: 移動先を選択 / マウスを重ねると移動先番号を表示\n\n"
         L"DLL注入・キーボードフック・通信は行いません。\n"
         L"サインイン時の自動起動はトレイメニューでオン／オフできます（既定はオフ）。\n"
         L"親だけでなく、実際の入力先ウィンドウも自動で判定します。\n"
@@ -306,7 +407,7 @@ void Application::show_menu(POINT point, Identity target) {
     for (int i = 0; i < shownCount; ++i) {
         names[i] = state_.monitors.items[i].info.szDevice;
         const auto& monitor = state_.monitors.items[i].info;
-        std::wstring label = std::to_wstring(i + 1) + L": " + names[i] + L"   " +
+        std::wstring label = monitor_label(state_.monitors.items[i]) + L"   " +
                              std::to_wstring(monitor.rcMonitor.right - monitor.rcMonitor.left) +
                              L" × " +
                              std::to_wstring(monitor.rcMonitor.bottom - monitor.rcMonitor.top);
@@ -317,6 +418,7 @@ void Application::show_menu(POINT point, Identity target) {
                     kMonitorCommand + static_cast<UINT>(i), label.c_str());
     }
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING, kNumberCommand, L"画面番号をWindowsに合わせる…");
     AppendMenuW(menu, MF_STRING | (state_.paused ? MF_CHECKED : 0), kPauseCommand,
                 L"ボタン表示を一時停止");
     AppendMenuW(menu,
@@ -384,6 +486,8 @@ void Application::show_menu(POINT point, Identity target) {
             MessageBoxW(state_.host.get(), message.c_str(), kAppName, MB_OK | MB_ICONERROR);
         }
 #endif
+    } else if (command == kNumberCommand) {
+        configure_monitor_numbers();
     } else if (command == kAboutCommand) {
         show_about();
     } else if (command == kExitCommand) {
@@ -396,7 +500,8 @@ void Application::paint_button(HWND hwnd) {
     // Begin/EndPaint still validate the update region; the actual surface is a
     // premultiplied layered bitmap, not a COLOR_BTNFACE rectangle over DWM.
     win32::PaintSession paint(hwnd);
-    if (!render_caption_button(hwnd, state_.palette, state_.hover, state_.pressed)) {
+    if (!render_caption_buttons(hwnd, state_.palette, state_.buttonCount, state_.hoverPart,
+                                state_.pressed ? state_.pressedPart : -1)) {
         hide_button();
     }
 }
@@ -470,51 +575,63 @@ LRESULT Application::on_button(HWND hwnd, UINT message, WPARAM wParam, LPARAM lP
     case WM_PAINT:
         paint_button(hwnd);
         return 0;
-    case WM_MOUSEMOVE:
-        if (!state_.hover) {
-            state_.hover = true;
-            TRACKMOUSEEVENT tracking{};
-            tracking.cbSize = sizeof(tracking);
-            tracking.dwFlags = TME_LEAVE;
-            tracking.hwndTrack = hwnd;
+    case WM_MOUSEMOVE: {
+        POINT point{};
+        GetCursorPos(&point);
+        ScreenToClient(hwnd, &point);
+        const int part = caption_part(hwnd, point, state_.buttonCount);
+        if (state_.hoverPart != part) {
+            state_.hoverPart = part;
+            state_.hover = part >= 0;
+            TRACKMOUSEEVENT tracking{sizeof(tracking), TME_LEAVE, hwnd, 0};
             TrackMouseEvent(&tracking);
             InvalidateRect(hwnd, nullptr, FALSE);
         }
         return 0;
+    }
     case WM_MOUSELEAVE:
         state_.hover = false;
+        state_.hoverPart = -1;
         InvalidateRect(hwnd, nullptr, FALSE);
         return 0;
-    case WM_LBUTTONDOWN:
-        if (alive(state_.target) && GetForegroundWindow() == state_.target.hwnd) {
+    case WM_LBUTTONDOWN: {
+        POINT point{};
+        GetCursorPos(&point);
+        ScreenToClient(hwnd, &point);
+        const int part = caption_part(hwnd, point, state_.buttonCount);
+        if (part >= 0 && alive(state_.target) && GetForegroundWindow() == state_.target.hwnd) {
             state_.pressed = true;
+            state_.pressedPart = part;
             state_.pressedTarget = state_.target;
+            state_.tooltip.hide();
             SetCapture(hwnd);
             InvalidateRect(hwnd, nullptr, FALSE);
         }
         return 0;
+    }
     case WM_LBUTTONUP: {
         const Identity clicked = state_.pressedTarget;
-        const bool wasPressed = state_.pressed;
+        const int pressedPart = state_.pressed ? state_.pressedPart : -1;
         state_.pressed = false;
+        state_.pressedPart = -1;
         state_.pressedTarget = {};
         if (GetCapture() == hwnd) {
             ReleaseCapture();
         }
         POINT p{};
-        RECT r{};
         GetCursorPos(&p);
         ScreenToClient(hwnd, &p);
-        GetClientRect(hwnd, &r);
-        if (wasPressed && same_window(clicked, state_.target) &&
-            GetForegroundWindow() == clicked.hwnd && PtInRect(&r, p)) {
-            move_next(clicked);
+        if (pressedPart >= 0 && same_window(clicked, state_.target) &&
+            GetForegroundWindow() == clicked.hwnd &&
+            caption_part(hwnd, p, state_.buttonCount) == pressedPart) {
+            move_next(clicked, state_.buttonCount == 2 && pressedPart == 0 ? -1 : 1);
         }
         InvalidateRect(hwnd, nullptr, FALSE);
         return 0;
     }
     case WM_CAPTURECHANGED:
         state_.pressed = false;
+        state_.pressedPart = -1;
         state_.pressedTarget = {};
         InvalidateRect(hwnd, nullptr, FALSE);
         return 0;
@@ -636,9 +753,9 @@ void Application::toggle_compatibility(Identity id) {
 }
 
 PlacementResult Application::placement_for(Identity target) {
-    auto placement =
-        find_button_placement(target, {state_.monitors, state_.host.get(), state_.button.get(),
-                                       state_.resolvingInputWindow, compatibility_enabled(target)});
+    auto placement = find_button_placement(
+        target, {state_.monitors, state_.host.get(), state_.button.get(),
+                 state_.resolvingInputWindow, compatibility_enabled(target), button_count()});
     if (placement.diagnosis.reason == PlacementReason::NoMonitor) {
         state_.topologyDirty = true;
     }
@@ -702,6 +819,7 @@ void Application::refresh_button() {
         return;
     }
     const RECT& bounds = *placement.bounds;
+    state_.buttonCount = button_count();
     RECT reference = placement.diagnosis.referenceButton;
     if (!valid(rect(reference))) {
         // Only a color reference, NOT an assertion that DWM split its buttons
@@ -732,6 +850,7 @@ void Application::refresh_button() {
     } else if (paletteChanged) {
         InvalidateRect(state_.button.get(), nullptr, FALSE);
     }
+    state_.tooltip.update(state_.button.get(), button_labels(state_.target), state_.buttonCount);
 }
 
 void Application::refresh_windows() {
@@ -835,6 +954,7 @@ int Application::run(const win32::Options& options) {
     }
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     state_.showOnSingleMonitor = options.showOnSingleMonitor;
+    state_.previewTwoButtons = options.showOnSingleMonitor && options.previewTwoButtons;
     // Capture GetLastError before any other API, including an old handle's deleter.
     const HANDLE mutex = CreateMutexW(
         nullptr, FALSE, L"Local\\MoveToMonitorButton.1A25B780-8CB8-472E-B61C-13EA85385C10");

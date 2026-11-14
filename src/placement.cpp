@@ -137,8 +137,8 @@ private:
         return probe_hit(hwnd, x, y, unavailable) && diagnosis_.lastHit == HTCAPTION;
     }
 
-    bool safe_caption_rect(HWND hwnd, mtmb::Rect r, bool& unavailable,
-                           bool measuredNativeButton = false) {
+    bool safe_single_caption_rect(HWND hwnd, mtmb::Rect r, bool& unavailable,
+                                  bool measuredNativeButton = false) {
         const int xs[5] = {(r.left + r.right) / 2, r.left + 2, r.right - 3, r.left + 2,
                            r.right - 3};
         const int ys[5] = {(r.top + r.bottom) / 2, r.top + 2, r.top + 2, r.bottom - 3,
@@ -182,6 +182,19 @@ private:
             const int strip = GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi) +
                               GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
             if (ys[i] < diagnosis_.window.top || ys[i] >= diagnosis_.window.top + strip) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool safe_caption_rect(HWND hwnd, mtmb::Rect r, bool& unavailable,
+                           bool measuredNativeButton = false) {
+        const int count = context_.buttonCount == 2 ? 2 : 1;
+        const int width = (r.right - r.left) / count;
+        for (int part = 0; part < count; ++part) {
+            const Rect cell{r.left + part * width, r.top, r.left + (part + 1) * width, r.bottom};
+            if (!safe_single_caption_rect(hwnd, cell, unavailable, measuredNativeButton)) {
                 return false;
             }
         }
@@ -481,7 +494,8 @@ private:
         // vertical alignment. Never bypass input hit-testing to make it fit.
         if (measured) {
             const bool left = controls.left + controls.right < window.left + window.right;
-            const int width = static_cast<int>(measured->right - measured->left);
+            const int width = static_cast<int>(measured->right - measured->left) *
+                              (context_.buttonCount == 2 ? 2 : 1);
             const int spacing = diagnosis_.measuredGap;
             const int first =
                 static_cast<int>(left ? controls.right + spacing : controls.left - spacing - width);
@@ -511,7 +525,7 @@ private:
         const bool buttonsOnLeft = controls.left + controls.right < window.left + window.right;
         const int direction = buttonsOnLeft ? 1 : -1;
         const int gap = mtmb::clamp(dip(3, monitor.dpi), 2, 30);
-        const int buttonWidth = dip(32, monitor.dpi);
+        const int buttonWidth = dip(32, monitor.dpi) * (context_.buttonCount == 2 ? 2 : 1);
         const int buttonHeight = mtmb::clamp(
             static_cast<int>(controls.bottom - controls.top) - 2 * gap, 1, dip(28, monitor.dpi));
         if (buttonHeight < dip(12, monitor.dpi)) {
@@ -563,7 +577,7 @@ private:
         // v0.1.1 searched at a single height. Small top/bottom borders could reject
         // every horizontal candidate. Also search a compact button vertically, but
         // still require five HTCAPTION results: never treat HTCLIENT as safe by default.
-        const int smallW = dip(24, monitor.dpi),
+        const int smallW = dip(24, monitor.dpi) * (context_.buttonCount == 2 ? 2 : 1),
                   smallH = mtmb::clamp(buttonHeight, dip(12, monitor.dpi), dip(16, monitor.dpi));
         const int top = mtmb::clamp(static_cast<int>(controls.top), static_cast<int>(frame.top),
                                     static_cast<int>(frame.bottom));

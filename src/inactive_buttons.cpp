@@ -25,6 +25,8 @@ InactiveButtons::InactiveButtons(Application& app) : app_(app) {
 InactiveButtons::~InactiveButtons() = default;
 
 void InactiveButtons::hide(Button& button) {
+    button.hoverPart = button.pressedPart = -1;
+    button.tooltip.hide();
     button.hover = button.pressed = false;
     if (button.window && GetCapture() == button.window.get()) {
         ReleaseCapture();
@@ -42,7 +44,8 @@ void InactiveButtons::hide_all() {
 
 bool InactiveButtons::paint(Button& button) {
     return button.window &&
-           render_caption_button(button.window.get(), button.palette, button.hover, button.pressed);
+           render_caption_buttons(button.window.get(), button.palette, button.count,
+                                  button.hoverPart, button.pressed ? button.pressedPart : -1);
 }
 
 void InactiveButtons::on_event(DWORD event, HWND target, LONG object) {
@@ -118,7 +121,7 @@ void InactiveButtons::refresh() {
         next_ = (next_ + 1) % candidates.count;
         auto& entry = buttons_[id.hwnd];
         if (!entry || !same_window(entry->target, id)) {
-            entry = std::make_unique<Button>(Button{*this, id, {}, {}, false, false, false, 0});
+            entry = std::make_unique<Button>(*this, id);
         }
         update(*entry);
         if (GetTickCount64() - started >= 100) {
@@ -137,8 +140,9 @@ void InactiveButtons::update(Button& button) {
         return;
     }
     const auto placement = find_button_placement(
-        button.target, {state.monitors, state.host.get(), button.window.get(),
-                        state.resolvingInputWindow, app_.compatibility_enabled(button.target)});
+        button.target,
+        {state.monitors, state.host.get(), button.window.get(), state.resolvingInputWindow,
+         app_.compatibility_enabled(button.target), app_.button_count()});
     if (!placement.bounds) {
         hide(button);
         return;
@@ -161,6 +165,7 @@ void InactiveButtons::update(Button& button) {
     }
     const HWND hwnd = button.window.get();
     const RECT bounds = *placement.bounds;
+    button.count = app_.button_count();
     const auto& diagnosis = placement.diagnosis;
     const RECT reference =
         valid(rect(diagnosis.referenceButton)) ? diagnosis.referenceButton : diagnosis.controls;
@@ -222,11 +227,16 @@ void InactiveButtons::update(Button& button) {
     // state stale without another WM_MOUSEMOVE. Reconcile after hit-test probing
     // has finished; only our own visible popup may become hovered.
     POINT cursor{};
-    const bool hovered =
-        GetCursorPos(&cursor) && PtInRect(&bounds, cursor) && WindowFromPoint(cursor) == hwnd;
-    if (button.hover != hovered) {
-        button.hover = hovered;
-        if (hovered) {
+    int part = -1;
+    if (GetCursorPos(&cursor) && PtInRect(&bounds, cursor) && WindowFromPoint(cursor) == hwnd) {
+        ScreenToClient(hwnd, &cursor);
+        part = caption_part(hwnd, cursor, button.count);
+    }
+    button.tooltip.update(hwnd, app_.button_labels(button.target), button.count);
+    if (button.hoverPart != part) {
+        button.hoverPart = part;
+        button.hover = part >= 0;
+        if (button.hover) {
             TRACKMOUSEEVENT tracking{sizeof(tracking), TME_LEAVE, hwnd, 0};
             TrackMouseEvent(&tracking);
         }
@@ -249,45 +259,56 @@ LRESULT InactiveButtons::message(Button& button, HWND hwnd, UINT msg, WPARAM wp,
         paint(button);
         return 0;
     }
-    case WM_MOUSEMOVE:
-        if (!button.hover) {
-            button.hover = true;
+    case WM_MOUSEMOVE: {
+        POINT point{};
+        GetCursorPos(&point);
+        ScreenToClient(hwnd, &point);
+        const int part = caption_part(hwnd, point, button.count);
+        if (button.hoverPart != part) {
+            button.hoverPart = part;
+            button.hover = part >= 0;
             TRACKMOUSEEVENT tracking{sizeof(tracking), TME_LEAVE, hwnd, 0};
             TrackMouseEvent(&tracking);
             paint(button);
         }
         return 0;
+    }
     case WM_MOUSELEAVE:
-        // A non-foreground window cannot rely on full mouse capture. Cancel on
-        // leaving the button, even if USER32 routes the eventual release elsewhere.
-        button.hover = false;
-        button.pressed = false;
+        button.hover = button.pressed = false;
+        button.hoverPart = button.pressedPart = -1;
         if (GetCapture() == hwnd) {
             ReleaseCapture();
         }
         paint(button);
         return 0;
-    case WM_LBUTTONDOWN:
-        if (app_.eligible(button.target)) {
+    case WM_LBUTTONDOWN: {
+        POINT point{};
+        GetCursorPos(&point);
+        ScreenToClient(hwnd, &point);
+        const int part = caption_part(hwnd, point, button.count);
+        if (part >= 0 && app_.eligible(button.target)) {
             button.pressed = true;
+            button.pressedPart = part;
+            button.tooltip.hide();
             SetCapture(hwnd);
             paint(button);
         }
         return 0;
+    }
     case WM_LBUTTONUP: {
-        const bool pressed = button.pressed;
+        const int pressedPart = button.pressed ? button.pressedPart : -1;
         button.pressed = false;
+        button.pressedPart = -1;
         if (GetCapture() == hwnd) {
             ReleaseCapture();
         }
         POINT cursor{};
-        RECT bounds{};
         GetCursorPos(&cursor);
-        GetWindowRect(hwnd, &bounds);
-        if (pressed && PtInRect(&bounds, cursor) && WindowFromPoint(cursor) == hwnd &&
-            app_.eligible(button.target)) {
-            // Directly use THIS button's target. No foreground-first click.
-            app_.move_next(button.target);
+        const HWND under = WindowFromPoint(cursor);
+        ScreenToClient(hwnd, &cursor);
+        if (pressedPart >= 0 && caption_part(hwnd, cursor, button.count) == pressedPart &&
+            under == hwnd && app_.eligible(button.target)) {
+            app_.move_next(button.target, button.count == 2 && pressedPart == 0 ? -1 : 1);
         } else {
             paint(button);
         }
@@ -295,6 +316,7 @@ LRESULT InactiveButtons::message(Button& button, HWND hwnd, UINT msg, WPARAM wp,
     }
     case WM_CAPTURECHANGED:
         button.pressed = false;
+        button.pressedPart = -1;
         paint(button);
         return 0;
     case WM_RBUTTONUP: {

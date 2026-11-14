@@ -1,5 +1,6 @@
 #pragma once
 #include "caption_appearance.hpp"
+#include "caption_tooltip.hpp"
 #include "inactive_buttons.hpp"
 #include "placement.hpp"
 #include "win32_helpers.hpp"
@@ -64,6 +65,9 @@ private:
         bool topologyDirty = true, showOnSingleMonitor = false;
         bool resolvingInputWindow = false;
         CaptionPalette palette;
+        CaptionTooltip tooltip;
+        int buttonCount = 1, hoverPart = -1, pressedPart = -1;
+        bool previewTwoButtons = false;
         bool paletteValid = false;
         bool failed = false;
     } state_;
@@ -87,7 +91,10 @@ private:
     void end_move(bool failed);
     void advance_move();
     void start_move(Identity target, int destination);
-    void move_next(Identity id);
+    void move_next(Identity id, int direction = 1);
+    int button_count() const;
+    std::array<std::wstring, 2> button_labels(Identity id) const;
+    void configure_monitor_numbers();
     void show_about();
     void show_menu(POINT point, Identity target);
     void paint_button(HWND hwnd);

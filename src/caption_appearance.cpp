@@ -227,13 +227,46 @@ std::vector<std::uint32_t> caption_pixels(int width, int height, UINT dpi,
 }
 
 bool render_caption_button(HWND overlay, const CaptionPalette& palette, bool hot, bool pressed) {
+    return render_caption_buttons(overlay, palette, 1, hot ? 0 : -1, pressed ? 0 : -1);
+}
+
+int caption_part(HWND overlay, POINT point, int count) {
+    RECT r{};
+    if (!GetClientRect(overlay, &r) || !PtInRect(&r, point) || r.right <= 0) {
+        return -1;
+    }
+    return count == 2 && point.x >= r.right / 2 ? 1 : 0;
+}
+
+bool render_caption_buttons(HWND overlay, const CaptionPalette& palette, int count, int hotPart,
+                            int pressedPart) {
     RECT client{};
     if (!GetClientRect(overlay, &client)) {
         return false;
     }
     const int width = client.right - client.left, height = client.bottom - client.top;
-    const auto pixels =
-        caption_pixels(width, height, GetDpiForWindow(overlay), palette, hot, pressed);
+    if (count != 1 && count != 2) {
+        return false;
+    }
+    if (width <= 0 || height <= 0 || width > 4096 || height > 1024 || width % count) {
+        return false;
+    }
+    const int cellWidth = width / count;
+    std::vector<std::uint32_t> pixels(static_cast<size_t>(width) * height);
+    for (int part = 0; part < count; ++part) {
+        const auto cell = caption_pixels(cellWidth, height, GetDpiForWindow(overlay), palette,
+                                         hotPart == part, pressedPart == part);
+        if (cell.empty()) {
+            return false;
+        }
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < cellWidth; ++x) {
+                const int sourceX = count == 2 && part == 0 ? cellWidth - 1 - x : x;
+                pixels[static_cast<size_t>(y) * width + part * cellWidth + x] =
+                    cell[static_cast<size_t>(y) * cellWidth + sourceX];
+            }
+        }
+    }
     if (pixels.empty()) {
         return false;
     }
