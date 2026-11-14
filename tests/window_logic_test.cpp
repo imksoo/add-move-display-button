@@ -1,6 +1,7 @@
 // Run the production controller against deterministic Win32 doubles on Linux.
 // This is NOT a Windows runtime/integration test. Unexpected API use aborts.
 #include "app_test_access.hpp"
+#include "monitor_order.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include <cwchar>
@@ -1006,6 +1007,26 @@ int main() {
     fake::refresh();
     CHECK(!fake::buttonVisible);
 
+    for (const int direction : {-1, 1}) {
+        fake::reset();
+        auto& displays = fake::state().monitors;
+        displays.count = 3;
+        displays.items[0].number = 9;
+        displays.items[1].number = 1;
+        displays.items[2] = displays.items[1];
+        displays.items[2].handle = reinterpret_cast<HMONITOR>(0x3000);
+        displays.items[2].number = 4;
+        StringCchCopyW(displays.items[2].info.szDevice, 32, L"DISPLAY3");
+        sort_monitors(displays);
+        CHECK(displays.items[0].number == 1 && displays.items[1].number == 4 &&
+              displays.items[2].number == 9);
+        const auto labels =
+            ApplicationTestAccess::labels(*fake::application, identify(fake::target));
+        CHECK(labels[0] == L"前: 画面 4 へ移動");
+        CHECK(labels[1] == L"次: 画面 1 へ移動");
+        ApplicationTestAccess::move(*fake::application, identify(fake::target), direction);
+        CHECK(fake::state().move.destination == (direction < 0 ? L"DISPLAY3" : L"DISPLAY2"));
+    }
     fake::application.reset();
     std::cout << "PASS: " << checks
               << " controller checks against deterministic Win32 doubles (NOT Windows runtime)\n";

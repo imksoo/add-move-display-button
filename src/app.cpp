@@ -78,16 +78,27 @@ UINT Application::probe_dpi(const RECT& monitor) {
 }
 
 void Application::refresh_monitors() {
-    hide_button();
-    if (inactive_) {
-        inactive_->hide_all();
-    }
+    const MonitorSet previous = state_.monitors;
     state_.topologyDirty = false;
     state_.monitors.count = 0;
     if (!EnumDisplayMonitors(nullptr, nullptr, enum_monitor, reinterpret_cast<LPARAM>(this))) {
         state_.monitors.count = 0;
     }
     number_monitors(state_.monitors);
+    bool changed = previous.count != state_.monitors.count;
+    for (int i = 0; !changed && i < previous.count; ++i) {
+        const auto& a = previous.items[i];
+        const auto& b = state_.monitors.items[i];
+        changed = a.handle != b.handle || a.dpi != b.dpi || a.number != b.number ||
+                  !EqualRect(&a.info.rcMonitor, &b.info.rcMonitor) ||
+                  !EqualRect(&a.info.rcWork, &b.info.rcWork);
+    }
+    if (changed) {
+        hide_button();
+        if (inactive_) {
+            inactive_->hide_all();
+        }
+    }
 }
 
 bool Application::eligible(Identity id) const {
@@ -287,7 +298,7 @@ std::array<std::wstring, 2> Application::button_labels(Identity id) const {
     return labels;
 }
 
-void Application::configure_monitor_numbers() {
+void Application::configure_monitor_numbers(Identity target) {
 #if defined(_WIN32)
     // Keep a device-name snapshot across each modal menu: topology may change
     // while it is open. Corrections affect this app only, never Windows settings.
@@ -314,9 +325,12 @@ void Application::configure_monitor_numbers() {
                             (number > 1 && (number - 1) % 16 == 0 ? MF_MENUBARBREAK : 0),
                         base + i * kMaxMonitors + number - 1, label.c_str());
         }
-        const auto label = monitor_label(monitor) + L" (" +
-                           std::to_wstring(monitor.info.rcMonitor.left) + L", " +
-                           std::to_wstring(monitor.info.rcMonitor.top) + L")";
+        const auto label =
+            monitor_label(monitor) +
+            (alive(target) &&
+                     MonitorFromWindow(target.hwnd, MONITOR_DEFAULTTONEAREST) == monitor.handle
+                 ? L" （このウィンドウの画面）"
+                 : L"");
         if (!AppendMenuW(menu.get(), MF_POPUP | MF_STRING,
                          reinterpret_cast<UINT_PTR>(numbers.get()), label.c_str())) {
             return;
@@ -362,6 +376,8 @@ void Application::configure_monitor_numbers() {
     }
     state_.topologyDirty = true;
     request_refresh();
+#else
+    (void)target;
 #endif
 }
 
@@ -487,7 +503,7 @@ void Application::show_menu(POINT point, Identity target) {
         }
 #endif
     } else if (command == kNumberCommand) {
-        configure_monitor_numbers();
+        configure_monitor_numbers(target);
     } else if (command == kAboutCommand) {
         show_about();
     } else if (command == kExitCommand) {
@@ -621,7 +637,7 @@ LRESULT Application::on_button(HWND hwnd, UINT message, WPARAM wParam, LPARAM lP
         POINT p{};
         GetCursorPos(&p);
         ScreenToClient(hwnd, &p);
-        if (pressedPart >= 0 && same_window(clicked, state_.target) &&
+        if (!state_.topologyDirty && pressedPart >= 0 && same_window(clicked, state_.target) &&
             GetForegroundWindow() == clicked.hwnd &&
             caption_part(hwnd, p, state_.buttonCount) == pressedPart) {
             move_next(clicked, state_.buttonCount == 2 && pressedPart == 0 ? -1 : 1);
@@ -814,6 +830,18 @@ void Application::refresh_button() {
         return;
     }
     const auto placement = placement_for(state_.target);
+#if defined(_WIN32)
+    // Read-only metadata on OUR window for black-box failure diagnostics.
+    SetPropW(state_.button.get(), L"MTMB.PlacementReason",
+             reinterpret_cast<HANDLE>(static_cast<INT_PTR>(placement.diagnosis.reason)));
+    SetPropW(state_.button.get(), L"MTMB.PlacementError",
+             reinterpret_cast<HANDLE>(static_cast<UINT_PTR>(placement.diagnosis.error)));
+    SetPropW(state_.button.get(), L"MTMB.PlacementProbes",
+             reinterpret_cast<HANDLE>(static_cast<INT_PTR>(placement.diagnosis.probes)));
+    SetPropW(state_.button.get(), L"MTMB.PlacementHit",
+             reinterpret_cast<HANDLE>(placement.diagnosis.lastHit));
+#endif
+
     if (!placement.bounds || GetForegroundWindow() != state_.target.hwnd) {
         hide_button();
         return;
@@ -878,6 +906,7 @@ void Application::cleanup() noexcept {
         Shell_NotifyIconW(NIM_DELETE, &state_.tray);
         state_.trayAdded = false;
     }
+    state_.tooltip.reset();
     state_.button.reset();
     state_.host.reset();
     state_.mutex.reset();

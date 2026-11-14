@@ -306,8 +306,9 @@ LRESULT InactiveButtons::message(Button& button, HWND hwnd, UINT msg, WPARAM wp,
         GetCursorPos(&cursor);
         const HWND under = WindowFromPoint(cursor);
         ScreenToClient(hwnd, &cursor);
-        if (pressedPart >= 0 && caption_part(hwnd, cursor, button.count) == pressedPart &&
-            under == hwnd && app_.eligible(button.target)) {
+        if (!app_.state_.topologyDirty && pressedPart >= 0 &&
+            caption_part(hwnd, cursor, button.count) == pressedPart && under == hwnd &&
+            app_.eligible(button.target)) {
             app_.move_next(button.target, button.count == 2 && pressedPart == 0 ? -1 : 1);
         } else {
             paint(button);

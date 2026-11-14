@@ -94,7 +94,7 @@ private:
     void move_next(Identity id, int direction = 1);
     int button_count() const;
     std::array<std::wstring, 2> button_labels(Identity id) const;
-    void configure_monitor_numbers();
+    void configure_monitor_numbers(Identity target);
     void show_about();
     void show_menu(POINT point, Identity target);
     void paint_button(HWND hwnd);

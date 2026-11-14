@@ -8,6 +8,7 @@ class CaptionTooltip {
 public:
     void update(HWND owner, const std::array<std::wstring, 2>& labels, int count);
     void hide();
+    void reset();
 
 private:
 #if defined(_WIN32)

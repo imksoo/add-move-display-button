@@ -65,6 +65,46 @@ class ReleaseEvidenceTest(unittest.TestCase):
             self.write(folder + "desktop-readiness.json", {"status": "ready"})
             self.write(folder + "results.json", results)
 
+        for result_path in list(self.root.rglob("results.json")):
+            if "windows-11-arm" not in str(result_path) and "chatgpt" not in str(result_path):
+                continue
+            paired = json.loads(result_path.read_text())
+            paired["buttonCount"] = 2
+            paired["cases"] = [c for c in paired["cases"] if c["app"] in ("Settings", "OpenAI.Codex", "OpenAI.ChatGPT-Desktop")]
+            for case in paired["cases"]:
+                case["hitPoints"] = 10
+                case["buttonPixels"] = [dict(part=i, glyph={"Changed": 10}, hover={"Changed": 20}) for i in (0, 1)]
+            self.write(str(result_path.parent.relative_to(self.root) / "paired/results.json"), paired)
+
+        self.write("real-app-evidence/real-app-evidence-multi-monitor/multi-monitor-result.json",
+                   dict(commit="abc", executableSha256=self.digest, passed=True,
+                        details=dict(threeDisplays=3, twoDisplays=2, restoredDisplays=3, movementCases=9,
+                                     crossButtonCancelled=True, hotplugGestureCancelled=True)))
+
+    def test_multi_monitor_gate(self):
+        path = "real-app-evidence/real-app-evidence-multi-monitor/multi-monitor-result.json"
+        data = json.loads((self.root / path).read_text())
+        data["details"]["twoDisplays"] = 3
+        self.write(path, data)
+        with self.assertRaises(ValueError):
+            PACKAGE.verify(self.root, "abc")
+
+    def test_pair_requires_both_glyphs(self):
+        path = "real-app-evidence/real-app-evidence-chatgpt/paired/results.json"
+        data = json.loads((self.root / path).read_text())
+        data["cases"][0]["buttonPixels"][1]["glyph"]["Changed"] = 0
+        self.write(path, data)
+        with self.assertRaises(ValueError):
+            PACKAGE.verify(self.root, "abc")
+
+    def test_pair_requires_ten_hit_points(self):
+        path = "real-app-evidence/real-app-evidence-windows-11-arm/paired/results.json"
+        data = json.loads((self.root / path).read_text())
+        data["cases"][0]["hitPoints"] = 5
+        self.write(path, data)
+        with self.assertRaises(ValueError):
+            PACKAGE.verify(self.root, "abc")
+
     def write(self, name, value):
         file = self.root / name
         file.parent.mkdir(parents=True, exist_ok=True)

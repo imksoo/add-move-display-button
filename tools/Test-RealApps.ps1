@@ -272,6 +272,12 @@ function Test-WindowState($spec,$target,[string]$mode) {
         $result.reason = $_.Exception.Message
         try {
             $result.failureContext=[pscustomobject]@{ input=[DesktopProbe]::InputSettings(); target=[DesktopProbe]::Describe($hwnd); windows=[DesktopProbe]::Windows() }
+            if ($null -ne $app) {
+                $hidden=@([DesktopProbe]::Windows() | Where-Object { $_.Pid -eq $app.Id -and $_.Class -eq 'MoveToMonitorButton.Overlay.v1' })
+                $result['placementDiagnosis']=@($hidden | ForEach-Object {
+                    [pscustomobject]@{ visible=$_.Visible; reason=[DesktopProbe]::GetProp([IntPtr]$_.Handle,'MTMB.PlacementReason').ToInt64(); error=[DesktopProbe]::GetProp([IntPtr]$_.Handle,'MTMB.PlacementError').ToInt64(); probes=[DesktopProbe]::GetProp([IntPtr]$_.Handle,'MTMB.PlacementProbes').ToInt64(); hit=[DesktopProbe]::GetProp([IntPtr]$_.Handle,'MTMB.PlacementHit').ToInt64() }
+                })
+            }
             [DesktopProbe]::CaptureScreen((Join-Path $out "$($spec.Name)-$mode-failure.png"))
         } catch { $result.reason += " Diagnostic capture: $($_.Exception.Message)" }
     }

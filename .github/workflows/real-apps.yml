@@ -227,7 +227,7 @@ jobs:
           retention-days: 14
   tested-release:
     name: Package the EXE verified on Server and Windows 11 desktops
-    needs: [build, desktop, sdk-checks, windows11-diagnostic, custom-caption-apps]
+    needs: [build, desktop, sdk-checks, windows11-diagnostic, custom-caption-apps, multi-monitor]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c

@@ -214,7 +214,7 @@ int wmain(int argc, wchar_t** argv) {
                       << m.name << L"\n";
         }
         inventory.close();
-        CHECK(displays.count >= 3);
+        CHECK(displays.count == 3);
         // Deliberately invert numbering relative to current enumeration/geometry,
         // including gaps. The same persistent correction is exposed in the menu.
         for (int i = 0; i < displays.count; ++i) {
@@ -272,10 +272,66 @@ int wmain(int argc, wchar_t** argv) {
         SetForegroundWindow(distractor.get());
         pump(800);
         click_move(app, window.get(), 1, 2, displays.items[2].handle, false, true);
+        // Hot-unplug while pressed: cancel the gesture, switch to one button,
+        // then reattach and return to the pair without restarting the product.
+        ShowWindowAsync(window.get(), SW_RESTORE);
+        CHECK(SetWindowPos(window.get(), nullptr, from.left + 40, from.top + 40, 900, 450,
+                           SWP_NOZORDER | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS));
+        pump(800);
+        SetForegroundWindow(window.get());
+        pair = await_button(app, window.get());
+        CHECK(pair);
+        RECT pairBounds{};
+        CHECK(GetWindowRect(pair, &pairBounds));
+        point(pair, 0, 2);
+        mouse(MOUSEEVENTF_LEFTDOWN);
+        DEVMODEW saved{};
+        saved.dmSize = sizeof(saved);
+        const int detachIndex = (displays.items[2].info.dwFlags & MONITORINFOF_PRIMARY) ? 1 : 2;
+        const std::wstring removed = displays.items[detachIndex].info.szDevice;
+        CHECK(EnumDisplaySettingsW(removed.c_str(), ENUM_CURRENT_SETTINGS, &saved));
+        DEVMODEW detached{};
+        detached.dmSize = sizeof(detached);
+        detached.dmFields = DM_POSITION | DM_PELSWIDTH | DM_PELSHEIGHT;
+        CHECK(ChangeDisplaySettingsExW(removed.c_str(), &detached, nullptr,
+                                       CDS_UPDATEREGISTRY | CDS_NORESET,
+                                       nullptr) == DISP_CHANGE_SUCCESSFUL);
+        CHECK(ChangeDisplaySettingsExW(nullptr, nullptr, nullptr, 0, nullptr) ==
+              DISP_CHANGE_SUCCESSFUL);
+        for (int i = 0; i < 50 && monitors().count != 2; ++i) {
+            pump(100);
+        }
+        CHECK(monitors().count == 2);
+        pump(800);
+        mouse(MOUSEEVENTF_LEFTUP);
+        pump(800);
+        auto two = monitors();
+        CHECK(MonitorFromWindow(window.get(), MONITOR_DEFAULTTONEAREST) == two.items[0].handle);
+        HWND single = await_button(app, window.get());
+        CHECK(single);
+        RECT singleBounds{};
+        CHECK(GetWindowRect(single, &singleBounds));
+        CHECK(singleBounds.right - singleBounds.left == (pairBounds.right - pairBounds.left) / 2);
+        click_move(app, window.get(), 0, 1, two.items[1].handle);
+        click_move(app, window.get(), 0, 1, two.items[0].handle);
+        CHECK(ChangeDisplaySettingsExW(removed.c_str(), &saved, nullptr,
+                                       CDS_UPDATEREGISTRY | CDS_NORESET,
+                                       nullptr) == DISP_CHANGE_SUCCESSFUL);
+        CHECK(ChangeDisplaySettingsExW(nullptr, nullptr, nullptr, 0, nullptr) ==
+              DISP_CHANGE_SUCCESSFUL);
+        for (int i = 0; i < 50 && monitors().count != 3; ++i) {
+            pump(100);
+        }
+        CHECK(monitors().count == 3);
+        pump(800);
+        displays = monitors();
+        click_move(app, window.get(), 1, 2, displays.items[1].handle);
         CHECK(mtmb::reset_monitor_numbers() == ERROR_SUCCESS);
         std::ofstream("multi-monitor-passed.txt")
             << "Actual signed-driver desktop, " << displays.count
-            << " logical displays; previous/next wrap, numbering override, maximized, inactive, cross-button cancel passed.\n";
+            << " logical displays; previous/next wrap, numbering override, maximized, inactive, cross-button cancel, 3-to-2-to-3 hotplug and one-button switching passed.\n";
+        std::ofstream("multi-monitor-details.json")
+            << R"({"threeDisplays":3,"twoDisplays":2,"restoredDisplays":3,"movementCases":9,"crossButtonCancelled":true,"hotplugGestureCancelled":true})";
         std::cout << "PASS actual multi-monitor EXE navigation\n";
         return 0;
     } catch (const std::exception& error) {

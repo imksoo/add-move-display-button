@@ -10,6 +10,7 @@ using System.Text;
 
 public static class DesktopProbe
 {
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr GetProp(IntPtr hwnd,string name);
     [StructLayout(LayoutKind.Sequential)]
     public struct Rect
     {

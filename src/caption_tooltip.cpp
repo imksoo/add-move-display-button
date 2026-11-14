@@ -4,6 +4,13 @@
 #endif
 
 namespace mtmb {
+void CaptionTooltip::reset() {
+#if defined(_WIN32)
+    window_.reset();
+    count_ = 0;
+#endif
+}
+
 void CaptionTooltip::hide() {
 #if defined(_WIN32)
     if (window_) {

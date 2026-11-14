@@ -35,6 +35,14 @@ struct ApplicationTestAccess {
         app.start_move(id, destination);
     }
 
+    static void move(Application& app, Identity id, int direction) {
+        app.move_next(id, direction);
+    }
+
+    static auto labels(Application& app, Identity id) {
+        return app.button_labels(id);
+    }
+
     static void event(Application& app, DWORD event, HWND hwnd, LONG object) {
         app.on_event(event, hwnd, object);
     }

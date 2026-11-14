@@ -525,7 +525,11 @@ private:
         const bool buttonsOnLeft = controls.left + controls.right < window.left + window.right;
         const int direction = buttonsOnLeft ? 1 : -1;
         const int gap = mtmb::clamp(dip(3, monitor.dpi), 2, 30);
-        const int buttonWidth = dip(32, monitor.dpi) * (context_.buttonCount == 2 ? 2 : 1);
+        // Some hosted WinUI captions expose only ~50 DIP of safe drag space.
+        // Preserve vertical alignment while fitting two independently checked
+        // 20-DIP-wide controls; measured native-size pairs were attempted above.
+        const int buttonWidth = dip(context_.buttonCount == 2 ? 20 : 32, monitor.dpi) *
+                                (context_.buttonCount == 2 ? 2 : 1);
         const int buttonHeight = mtmb::clamp(
             static_cast<int>(controls.bottom - controls.top) - 2 * gap, 1, dip(28, monitor.dpi));
         if (buttonHeight < dip(12, monitor.dpi)) {
