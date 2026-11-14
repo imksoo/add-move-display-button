@@ -38,6 +38,7 @@ int titlebarQueries = 0;
 HMONITOR left = reinterpret_cast<HMONITOR>(0x1000), right = reinterpret_cast<HMONITOR>(0x2000);
 RECT normal{100, 100, 900, 700}, outer = normal, overlay{};
 HWND foreground = target, captured;
+POINT cursor{};
 bool exists = true, visible = true, enabled = true, zoomed, iconic, hung, cloaked;
 bool buttonVisible, hitClient, failPosition, deferPosition;
 DWORD guiFlags, lastError, messageError;
@@ -89,6 +90,7 @@ void reset() {
     overlay = {};
     foreground = target;
     captured = nullptr;
+    cursor = {};
     exists = true;
     visible = true;
     enabled = true;
@@ -222,6 +224,27 @@ BOOL WINAPI UnionRect(RECT* out, const RECT* a, const RECT* b) {
 
 BOOL WINAPI EqualRect(const RECT* a, const RECT* b) {
     return a->left == b->left && a->top == b->top && a->right == b->right && a->bottom == b->bottom;
+}
+
+BOOL WINAPI GetCursorPos(POINT* point) {
+    *point = fake::cursor;
+    return TRUE;
+}
+
+BOOL WINAPI ScreenToClient(HWND, POINT* point) {
+    point->x -= fake::overlay.left;
+    point->y -= fake::overlay.top;
+    return TRUE;
+}
+
+BOOL WINAPI GetClientRect(HWND, RECT* bounds) {
+    *bounds = {0, 0, fake::overlay.right - fake::overlay.left,
+               fake::overlay.bottom - fake::overlay.top};
+    return TRUE;
+}
+
+BOOL WINAPI TrackMouseEvent(TRACKMOUSEEVENT*) {
+    return TRUE;
 }
 
 BOOL WINAPI PtInRect(const RECT* r, POINT p) {
@@ -1006,6 +1029,29 @@ int main() {
     fake::childClient = true;
     fake::refresh();
     CHECK(!fake::buttonVisible);
+
+    // A stationary cursor must recover its cell after a hide/re-show, and a
+    // delayed leave from hit-test probing must not clear the current hot cell.
+    fake::reset();
+    fake::state().previewTwoButtons = true;
+    fake::state().showOnSingleMonitor = true;
+    fake::refresh();
+    CHECK(fake::buttonVisible && fake::state().buttonCount == 2);
+    for (const int part : {0, 1}) {
+        fake::cursor = {fake::overlay.left +
+                            (fake::overlay.right - fake::overlay.left) * (2 * part + 1) / 4,
+                        (fake::overlay.top + fake::overlay.bottom) / 2};
+        fake::state().hoverPart = -1;
+        fake::state().hover = false;
+        fake::buttonVisible = false;
+        fake::refresh();
+        CHECK(fake::buttonVisible && fake::state().hoverPart == part);
+        ApplicationTestAccess::button(*fake::application, fake::button, WM_MOUSELEAVE, 0, 0);
+        CHECK(fake::state().hover && fake::state().hoverPart == part);
+    }
+    fake::cursor = {};
+    ApplicationTestAccess::button(*fake::application, fake::button, WM_MOUSELEAVE, 0, 0);
+    CHECK(!fake::state().hover && fake::state().hoverPart == -1);
 
     for (const int direction : {-1, 1}) {
         fake::reset();

@@ -256,13 +256,20 @@ function Test-WindowState($spec,$target,[string]$mode) {
             Require ($glyph.Changed -ge 6) "No visible glyph in button $part."
             $center=$points[5*$part+4]
             $null=[DesktopProbe]::SetCursorPos($center.X,$center.Y)
-            Start-Sleep -Milliseconds 250
             $hotFile = Join-Path $out "$prefix-hover-$part.png"
-            $null=[DesktopProbe]::CaptureCaption($hwnd,$hotFile)
+            $hoverDeadline=[DateTime]::UtcNow.AddSeconds(2)
+            $hoverSamples=0
+            do {
+                Start-Sleep -Milliseconds 150
+                $null=[DesktopProbe]::CaptureCaption($hwnd,$hotFile)
+                $hot=[DesktopProbe]::Compare($normal,$hotFile,$cell,$capture)
+                $present=[DesktopProbe]::Compare($baseline,$hotFile,$cell,$capture)
+                $validHover=[DesktopProbe]::IsWindowVisible($oh) -and [DesktopProbe]::Bounds($oh).Same($bounds) -and [DesktopProbe]::WindowFromPoint($center) -eq $oh -and $hot.Changed -ge 6 -and $present.Changed -ge 6
+                if ($validHover) { $hoverSamples++ } else { $hoverSamples=0 }
+            } while ($hoverSamples -lt 3 -and [DateTime]::UtcNow -lt $hoverDeadline)
             $result.screenshots += [IO.Path]::GetFileName($hotFile)
-            $hot=[DesktopProbe]::Compare($normal,$hotFile,$cell,$capture)
-            Require ($hot.Changed -ge 6) "Hover did not change button $part."
-            $result.buttonPixels += [pscustomobject]@{ part=$part; glyph=$glyph; hover=$hot }
+            Require ($hoverSamples -ge 3) "Hover did not remain visibly changed on button $part."
+            $result.buttonPixels += [pscustomobject]@{ part=$part; glyph=$glyph; hover=$hot; hoverPresence=$present; hoverSamples=$hoverSamples }
         }
         $result.pixelGlyph=$result.buttonPixels[0].glyph
         $result.pixelHover=$result.buttonPixels[0].hover

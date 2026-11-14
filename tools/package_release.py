@@ -99,6 +99,7 @@ def verify_cases(folder: Path, commit: str, digest: str, apps: tuple[str, ...], 
                 cells = case.get("buttonPixels", [])
                 require(len(cells) == 2 and {c["part"] for c in cells} == {0, 1}, f"Missing button pixels: {label}")
                 require(all(c["glyph"]["Changed"] >= 6 and c["hover"]["Changed"] >= 6 for c in cells), f"One paired button is invisible: {label}")
+                require(all(c.get("hoverSamples", 0) >= 3 and c.get("hoverPresence", {}).get("Changed", 0) >= 6 for c in cells), f"Paired hover was not visibly stable: {label}")
             require(case["pixelGlyph"]["Changed"] >= 6 and case["pixelHover"]["Changed"] >= 6,
                     f"Rendering not observed: {label}")
 

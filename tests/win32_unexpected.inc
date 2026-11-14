@@ -9,7 +9,6 @@ ATOM WINAPI RegisterClassExW(const WNDCLASSEXW*) { std::cerr << "Unexpected API:
 HWND WINAPI CreateWindowExW(DWORD, LPCWSTR, LPCWSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE, LPVOID) { std::cerr << "Unexpected API: CreateWindowExW\n"; std::abort(); }
 LRESULT WINAPI DefWindowProcW(HWND, UINT, WPARAM, LPARAM) { std::cerr << "Unexpected API: DefWindowProcW\n"; std::abort(); }
 HWND WINAPI FindWindowW(LPCWSTR, LPCWSTR) { std::cerr << "Unexpected API: FindWindowW\n"; std::abort(); }
-BOOL WINAPI GetClientRect(HWND, RECT*) { std::cerr << "Unexpected API: GetClientRect\n"; std::abort(); }
 int WINAPI GetWindowTextW(HWND, LPWSTR, int) { std::cerr << "Unexpected API: GetWindowTextW\n"; std::abort(); }
 BOOL WINAPI EnumDisplayMonitors(HDC, const RECT*, MONITORENUMPROC, LPARAM) { std::cerr << "Unexpected API: EnumDisplayMonitors\n"; std::abort(); }
 BOOL WINAPI GetMonitorInfoW(HMONITOR, MONITORINFO*) { std::cerr << "Unexpected API: GetMonitorInfoW\n"; std::abort(); }
@@ -20,10 +19,7 @@ BOOL WINAPI GetMessageW(MSG*, HWND, UINT, UINT) { std::cerr << "Unexpected API: 
 BOOL WINAPI TranslateMessage(const MSG*) { std::cerr << "Unexpected API: TranslateMessage\n"; std::abort(); }
 LRESULT WINAPI DispatchMessageW(const MSG*) { std::cerr << "Unexpected API: DispatchMessageW\n"; std::abort(); }
 void WINAPI PostQuitMessage(int) { std::cerr << "Unexpected API: PostQuitMessage\n"; std::abort(); }
-BOOL WINAPI GetCursorPos(POINT*) { std::cerr << "Unexpected API: GetCursorPos\n"; std::abort(); }
-BOOL WINAPI ScreenToClient(HWND, POINT*) { std::cerr << "Unexpected API: ScreenToClient\n"; std::abort(); }
 BOOL WINAPI ClientToScreen(HWND, POINT*) { std::cerr << "Unexpected API: ClientToScreen\n"; std::abort(); }
-BOOL WINAPI TrackMouseEvent(TRACKMOUSEEVENT*) { std::cerr << "Unexpected API: TrackMouseEvent\n"; std::abort(); }
 BOOL WINAPI InvalidateRect(HWND, const RECT*, BOOL) { return TRUE; }
 HDC WINAPI BeginPaint(HWND, PAINTSTRUCT*) { std::cerr << "Unexpected API: BeginPaint\n"; std::abort(); }
 BOOL WINAPI EndPaint(HWND, const PAINTSTRUCT*) { std::cerr << "Unexpected API: EndPaint\n"; std::abort(); }

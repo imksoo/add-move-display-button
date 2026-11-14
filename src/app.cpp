@@ -580,6 +580,26 @@ void Application::on_event(DWORD event, HWND hwnd, LONG object) {
     }
 }
 
+void Application::reconcile_hover(HWND hwnd) {
+    POINT cursor{};
+    RECT bounds{};
+    int part = -1;
+    if (IsWindowVisible(hwnd) && GetWindowRect(hwnd, &bounds) && GetCursorPos(&cursor) &&
+        PtInRect(&bounds, cursor) && WindowFromPoint(cursor) == hwnd &&
+        ScreenToClient(hwnd, &cursor)) {
+        part = caption_part(hwnd, cursor, state_.buttonCount);
+    }
+    if (part >= 0) {
+        TRACKMOUSEEVENT tracking{sizeof(tracking), TME_LEAVE, hwnd, 0};
+        TrackMouseEvent(&tracking);
+    }
+    if (state_.hoverPart != part) {
+        state_.hoverPart = part;
+        state_.hover = part >= 0;
+        InvalidateRect(hwnd, nullptr, FALSE);
+    }
+}
+
 LRESULT Application::on_button(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
     case WM_NCHITTEST:
@@ -606,9 +626,9 @@ LRESULT Application::on_button(HWND hwnd, UINT message, WPARAM wParam, LPARAM lP
         return 0;
     }
     case WM_MOUSELEAVE:
-        state_.hover = false;
-        state_.hoverPart = -1;
-        InvalidateRect(hwnd, nullptr, FALSE);
+        // A leave queued during placement probing/re-show can arrive after the
+        // cursor is back over us. Reconcile instead of clearing a valid hover.
+        reconcile_hover(hwnd);
         return 0;
     case WM_LBUTTONDOWN: {
         POINT point{};
@@ -879,6 +899,8 @@ void Application::refresh_button() {
         InvalidateRect(state_.button.get(), nullptr, FALSE);
     }
     state_.tooltip.update(state_.button.get(), button_labels(state_.target), state_.buttonCount);
+    // Re-showing under a stationary cursor need not produce WM_MOUSEMOVE.
+    reconcile_hover(state_.button.get());
 }
 
 void Application::refresh_windows() {

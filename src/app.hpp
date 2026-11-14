@@ -87,6 +87,7 @@ private:
     PlacementResult placement_for(Identity target);
     void show_diagnostics(Identity target);
     void refresh_button();
+    void reconcile_hover(HWND hwnd);
     void refresh_windows();
     void end_move(bool failed);
     void advance_move();

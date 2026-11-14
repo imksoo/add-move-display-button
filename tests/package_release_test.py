@@ -73,7 +73,7 @@ class ReleaseEvidenceTest(unittest.TestCase):
             paired["cases"] = [c for c in paired["cases"] if c["app"] in ("Settings", "OpenAI.Codex", "OpenAI.ChatGPT-Desktop")]
             for case in paired["cases"]:
                 case["hitPoints"] = 10
-                case["buttonPixels"] = [dict(part=i, glyph={"Changed": 10}, hover={"Changed": 20}) for i in (0, 1)]
+                case["buttonPixels"] = [dict(part=i, glyph={"Changed": 10}, hover={"Changed": 20}, hoverPresence={"Changed": 30}, hoverSamples=3) for i in (0, 1)]
             self.write(str(result_path.parent.relative_to(self.root) / "paired/results.json"), paired)
 
         self.write("real-app-evidence/real-app-evidence-multi-monitor/multi-monitor-result.json",
@@ -93,6 +93,14 @@ class ReleaseEvidenceTest(unittest.TestCase):
         path = "real-app-evidence/real-app-evidence-chatgpt/paired/results.json"
         data = json.loads((self.root / path).read_text())
         data["cases"][0]["buttonPixels"][1]["glyph"]["Changed"] = 0
+        self.write(path, data)
+        with self.assertRaises(ValueError):
+            PACKAGE.verify(self.root, "abc")
+
+    def test_pair_rejects_disappearance_as_hover(self):
+        path = "real-app-evidence/real-app-evidence-chatgpt/paired/results.json"
+        data = json.loads((self.root / path).read_text())
+        data["cases"][0]["buttonPixels"][1]["hoverPresence"]["Changed"] = 0
         self.write(path, data)
         with self.assertRaises(ValueError):
             PACKAGE.verify(self.root, "abc")
