@@ -95,6 +95,10 @@ int wmain(int argc, wchar_t** argv) {
             request.header.type = static_cast<DISPLAYCONFIG_DEVICE_INFO_TYPE>(-4);
             request.header.size = sizeof(request);
             request.value = static_cast<int>(target - std::begin(percentages)) + info.minimum;
+            if (request.value < info.minimum || request.value > info.maximum) {
+                std::cerr << "DPI offsets: min=" << info.minimum << " current=" << info.current
+                          << " max=" << info.maximum << " requested=" << request.value << '\n';
+            }
             require(request.value >= info.minimum && request.value <= info.maximum,
                     "Host does not offer the requested display scale");
             require(DisplayConfigSetDeviceInfo(&request.header) == ERROR_SUCCESS,

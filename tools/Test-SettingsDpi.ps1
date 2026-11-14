@@ -18,13 +18,15 @@ try {
         $dpi = [int](96*$percent/100)
         $out = Join-Path $OutputDirectory "settings-dpi-$dpi"
         $null = New-Item -ItemType Directory -Force $out
-        # The host exposes up to 1920x1080. Portrait keeps at least 720
-        # effective vertical pixels for real 200% without a custom driver.
-        $width = if ($percent -eq 200) { 1080 } else { 1920 }
-        $height = if ($percent -eq 200) { 1920 } else { 1080 }
-        $orientation = if ($percent -eq 200) { 1 } else { 0 }
-        & $setup $percent $width $height $orientation | Tee-Object -FilePath (Join-Path $out 'display-scale.json')
-        if ($LASTEXITCODE -ne 0) { throw "Cannot configure $percent percent display scale." }
+        # Try only modes observed on this host. Different orientations can
+        # expose different scale ranges; the actual window DPI is checked below.
+        $modes = if ($percent -eq 200) { @(@(1600,1200,0),@(1080,1920,1),@(1200,1600,1)) } else { ,@(1920,1080,0) }
+        $configured = $false
+        foreach ($mode in $modes) {
+            & $setup $percent $mode[0] $mode[1] $mode[2] | Tee-Object -FilePath (Join-Path $out 'display-scale.json')
+            if ($LASTEXITCODE -eq 0) { $configured = $true; break }
+        }
+        if (-not $configured) { throw "Cannot configure $percent percent display scale in any supported mode." }
         & powershell.exe -NoProfile -File (Join-Path $PSScriptRoot 'Test-DesktopReadiness.ps1') -OutputDirectory $out
         if ($LASTEXITCODE -ne 0) { throw "Desktop preflight failed at $percent percent." }
         & powershell.exe -NoProfile -File (Join-Path $PSScriptRoot 'Test-RealApps.ps1') -ExecutablePath $exe -OutputDirectory $out -RequireWindows11Coverage -SettingsOnly -ExpectedDpi $dpi
