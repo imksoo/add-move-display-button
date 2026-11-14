@@ -582,6 +582,26 @@ int main() {
     fake::refresh();
     CHECK(!fake::buttonVisible);
 
+    // Real ChatGPT omits WS_SYSMENU and drops WS_CAPTION when maximized.
+    // This API simulation checks eligibility only; actual custom-frame geometry
+    // is gated on official applications in the Windows 11 desktop job.
+    fake::reset();
+    fake::style &= ~WS_SYSMENU;
+    fake::refresh();
+    CHECK(fake::buttonVisible);
+    fake::style &= ~WS_CAPTION;
+    fake::zoomed = true;
+    fake::refresh();
+    CHECK(fake::buttonVisible);
+    fake::style &= ~WS_THICKFRAME;
+    fake::refresh();
+    CHECK(!fake::buttonVisible);
+    fake::reset();
+    fake::style &= ~(WS_SYSMENU | WS_CAPTION);
+    fake::hitClient = true;
+    fake::refresh();
+    CHECK(!fake::buttonVisible);
+
     // Preserve the compact-button fallback for the synthetic top/bottom-border case.
     fake::reset();
     fake::hitBand = true;

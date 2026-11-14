@@ -53,6 +53,12 @@ def verify(root: Path, commit: str) -> tuple[str, str]:
                 require(read_json(scaled / "desktop-readiness.json")["status"] == "ready",
                         "HiDPI desktop not ready")
                 verify_cases(scaled, commit, digest, ("Settings",), dpi)
+    chatgpt = root / "real-app-evidence" / "real-app-evidence-chatgpt"
+    for dpi in (96, 144, 192):
+        folder = chatgpt if dpi == 96 else chatgpt / f"settings-dpi-{dpi}"
+        require(read_json(folder / "desktop-readiness.json")["status"] == "ready",
+                "ChatGPT desktop not ready")
+        verify_cases(folder, commit, digest, ("OpenAI.Codex", "OpenAI.ChatGPT-Desktop"), dpi)
     return version, digest
 
 
@@ -68,9 +74,9 @@ def verify_cases(folder: Path, commit: str, digest: str, apps: tuple[str, ...], 
             label = f"{folder.name}/{app}/{mode}"
             require(len(cases) == 1 and cases[0]["status"] == "passed", f"Missing or failed: {label}")
             case = cases[0]
-            if app not in ("Chrome", "MicrosoftStore", "Calculator", "Settings") and not (dpi == 96 and app == "Notepad"):
+            if app not in ("Chrome", "MicrosoftStore", "Calculator", "Settings", "OpenAI.Codex", "OpenAI.ChatGPT-Desktop") and not (dpi == 96 and app == "Notepad"):
                 require(case["nativeSizeMatched"] is True, f"Native size mismatch: {label}")
-            if app == "Settings":
+            if app in ("Settings", "OpenAI.Codex"):
                 errors = case.get("verticalCenterErrors", [])
                 require(len(errors) == 3 and all(abs(e) <= 0.5 for e in errors),
                         f"Caption center mismatch: {label}")
@@ -98,7 +104,7 @@ def package(root: Path, output: Path, commit: str) -> tuple[str, str]:
     write_zip(portable, application, root)
     (output / "SHA256SUMS.txt").write_text(
         "".join(f"{sha256(file)}  {file.name}\n" for file in sorted(output.iterdir())), encoding="ascii")
-    print(f"Verified {version}: Server + Windows 11 real apps, Settings at 100/150/200 percent; EXE {digest}")
+    print(f"Verified {version}: Server + Windows 11 real apps, Settings and ChatGPT at 100/150/200 percent; EXE {digest}")
     return version, digest
 
 

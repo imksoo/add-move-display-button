@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$ExecutablePath,
     [Parameter(Mandatory=$true)][string]$DisplaySetupPath,
-    [string]$OutputDirectory = 'real-app-evidence'
+    [string]$OutputDirectory = 'real-app-evidence',
+    [switch]$ChatGPTOnly
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -32,8 +33,9 @@ try {
         if (-not $configured) { throw "Cannot configure $percent percent display scale in any supported mode." }
         & powershell.exe -NoProfile -File (Join-Path $PSScriptRoot 'Test-DesktopReadiness.ps1') -OutputDirectory $out
         if ($LASTEXITCODE -ne 0) { throw "Desktop preflight failed at $percent percent." }
-        & powershell.exe -NoProfile -File (Join-Path $PSScriptRoot 'Test-RealApps.ps1') -ExecutablePath $exe -OutputDirectory $out -RequireWindows11Coverage -SettingsOnly -ExpectedDpi $dpi
-        if ($LASTEXITCODE -ne 0) { throw "Settings alignment failed at $percent percent." }
+        $selection = if ($ChatGPTOnly) { '-ChatGPTOnly' } else { '-SettingsOnly' }
+        & powershell.exe -NoProfile -File (Join-Path $PSScriptRoot 'Test-RealApps.ps1') -ExecutablePath $exe -OutputDirectory $out -RequireWindows11Coverage $selection -ExpectedDpi $dpi
+        if ($LASTEXITCODE -ne 0) { throw "Caption alignment failed at $percent percent ($selection)." }
     }
 } finally {
     & $setup $original.percent $original.width $original.height $original.orientation

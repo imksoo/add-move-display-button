@@ -34,7 +34,8 @@ jobs:
         run: |
           ./tools/Test-Startup.ps1 -ExecutablePath build/Release/MoveToMonitorButton.exe -OutputPath build/startup-result.json
           New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item build/Release/MoveToMonitorButton.exe,build/Release/build-info.json,build/startup-result.json,build/test-results.xml,README.md,LICENSE dist/
+          Copy-Item build/Release/MoveToMonitorButton.exe,build/Release/build-info.json,build/startup-result.json,build/test-results.xml,LICENSE dist/
+          Copy-Item docs/PORTABLE.md dist/README.md
           New-Item -ItemType Directory -Force dist/test-programs | Out-Null
           Copy-Item build/Release/inactive_overlay_test.exe,build/Release/hosted_display_scale.exe dist/test-programs/
           $hash = (Get-FileHash dist/MoveToMonitorButton.exe -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -153,9 +154,47 @@ jobs:
           path: real-app-evidence/
           if-no-files-found: warn
           retention-days: 14
+  custom-caption-apps:
+    name: ChatGPT custom frames at 100, 150 and 200 percent
+    needs: build
+    runs-on: windows-11-arm
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: real-app-test-executable
+          path: app-under-test
+      - name: Prepare disposable desktop and WSL prerequisites
+        timeout-minutes: 9
+        shell: powershell
+        run: ./tools/Initialize-HostedDesktop.ps1 -OutputDirectory chatgpt-evidence/desktop-setup -PrepareApplicationTests
+      - name: Verify exact two-color capture preflight
+        shell: powershell
+        run: ./tools/Test-DesktopReadiness.ps1 -OutputDirectory chatgpt-evidence
+      - name: Install official ChatGPT and ChatGPT Classic from Microsoft Store
+        timeout-minutes: 12
+        shell: powershell
+        run: ./tools/Install-ChatGPTTestApps.ps1 -OutputDirectory chatgpt-evidence
+      - name: Verify actual ChatGPT captions at 100 percent
+        shell: powershell
+        run: ./tools/Test-RealApps.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -OutputDirectory chatgpt-evidence -RequireWindows11Coverage -ChatGPTOnly -ExpectedDpi 96
+      - name: Verify actual ChatGPT captions at 150 and 200 percent
+        shell: powershell
+        run: ./tools/Test-SettingsDpi.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -DisplaySetupPath app-under-test/test-programs/hosted_display_scale.exe -OutputDirectory chatgpt-evidence -ChatGPTOnly
+      - name: Preserve evidence including failures
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: real-app-evidence-chatgpt
+          path: chatgpt-evidence/
+          if-no-files-found: warn
+          retention-days: 14
   tested-release:
     name: Package the EXE verified on Server and Windows 11 desktops
-    needs: [build, desktop, sdk-checks, windows11-diagnostic]
+    needs: [build, desktop, sdk-checks, windows11-diagnostic, custom-caption-apps]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
@@ -164,7 +203,7 @@ jobs:
           path: dist
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          pattern: real-app-evidence-windows-*
+          pattern: real-app-evidence-*
           path: dist/real-app-evidence
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:

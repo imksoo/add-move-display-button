@@ -95,8 +95,13 @@ bool Application::eligible(Identity id) const {
     }
     const auto style = static_cast<DWORD_PTR>(GetWindowLongPtrW(id.hwnd, GWL_STYLE));
     const auto ex = static_cast<DWORD_PTR>(GetWindowLongPtrW(id.hwnd, GWL_EXSTYLE));
-    if ((style & WS_CHILD) || (ex & WS_EX_TOOLWINDOW) || (style & WS_CAPTION) != WS_CAPTION ||
-        !(style & WS_SYSMENU)) {
+    // Custom frames can omit WS_SYSMENU, and remove WS_CAPTION when maximized.
+    // Admit resizable application windows without an app-name allowlist; placement
+    // still has to prove a safe caption region through the actual input HWND.
+    const bool standardFrame = (style & WS_CAPTION) == WS_CAPTION && (style & WS_SYSMENU);
+    constexpr DWORD_PTR applicationFrame = WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
+    const bool customFrame = (style & applicationFrame) == applicationFrame;
+    if ((style & WS_CHILD) || (ex & WS_EX_TOOLWINDOW) || (!standardFrame && !customFrame)) {
         return false;
     }
     DWORD cloaked = 0;

@@ -5,6 +5,7 @@ param(
     [switch]$AllowDesktopCapture,
     [switch]$RequireWindows11Coverage,
     [switch]$SettingsOnly,
+    [switch]$ChatGPTOnly,
     [int]$ExpectedDpi = 0
 )
 $ErrorActionPreference = 'Stop'
@@ -32,7 +33,7 @@ $chromeProfile = Join-Path ([IO.Path]::GetTempPath()) ('mtmb-chrome-'+[guid]::Ne
 $oldCursor = New-Object DesktopProbe+Point
 $null = [DesktopProbe]::GetCursorPos([ref]$oldCursor)
 $os = Get-CimInstance Win32_OperatingSystem
-$packages = @(Get-AppxPackage | Where-Object { $_.Name -match 'WindowsNotepad|WindowsStore|WindowsCalculator|immersivecontrolpanel' })
+$packages = @(Get-AppxPackage | Where-Object { $_.Name -match 'WindowsNotepad|WindowsStore|WindowsCalculator|immersivecontrolpanel|^OpenAI\.' })
 $evidence = [ordered]@{
     schemaVersion = 1
     commit = $env:GITHUB_SHA
@@ -140,7 +141,7 @@ function Test-WindowState($spec,$target,[string]$mode) {
         }
         $result.caption = $caption
         if ($ExpectedDpi) { Require ($caption.Dpi -eq $ExpectedDpi) "Actual window DPI $($caption.Dpi) differs from required $ExpectedDpi." }
-        if ($RequireWindows11Coverage -and $spec.Name -in @('Settings','Calculator','MicrosoftStore')) {
+        if ($RequireWindows11Coverage -and ($ChatGPTOnly -or $spec.Name -in @('Settings','Calculator','MicrosoftStore'))) {
             $result['childTitlebars'] = @($caption.Children | Where-Object Class -eq 'ApplicationFrameTitleBarWindow' | ForEach-Object { [DesktopProbe]::Caption([IntPtr]$_.Handle) })
             $element = [System.Windows.Automation.AutomationElement]::FromHandle($hwnd)
             $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Button)
@@ -150,6 +151,19 @@ function Test-WindowState($spec,$target,[string]$mode) {
                     [pscustomobject]@{ id=$info.AutomationId; name=$info.Name; left=$r.Left; top=$r.Top; right=$r.Right; bottom=$r.Bottom; process=$info.ProcessId; handle=$info.NativeWindowHandle }
                 }
             })
+        }
+        if ($ChatGPTOnly) {
+            $result['captionHitGrid'] = @(
+                foreach ($dy in @(4,12,20,28,36,44)) {
+                    foreach ($column in 1..12) {
+                        $x = [int]($caption.Frame.Left + $caption.Frame.Width*$column/13)
+                        $y = [int]($caption.Frame.Top + $dy*$caption.Dpi/96)
+                        $point = [DesktopProbe+Point]::new($x,$y)
+                        $input = [DesktopProbe]::WindowFromPoint($point)
+                        [pscustomobject]@{ x=$x; y=$y; rootHit=[DesktopProbe]::Hit($hwnd,$x,$y); inputHit=[DesktopProbe]::Hit($input,$x,$y); input=[DesktopProbe]::Describe($input) }
+                    }
+                }
+            )
         }
         $prefix = "$($spec.Name)-$mode"
         $baseline = Join-Path $out "$prefix-baseline.png"
@@ -177,8 +191,9 @@ function Test-WindowState($spec,$target,[string]$mode) {
         Require ($null -ne $overlay) 'Overlay not visible on the real application.'
         $bounds = [DesktopProbe]::Bounds([IntPtr]$overlay.Handle)
         $result.overlay = $bounds
-        if ($RequireWindows11Coverage -and $spec.Name -in @('Settings','Calculator','MicrosoftStore')) {
-            $buttons = @($result.captionAutomation | Where-Object { $_.id -in @('Minimize','Maximize','Close') })
+        if ($RequireWindows11Coverage -and ($spec.Name -eq 'OpenAI.Codex' -or $spec.Name -in @('Settings','Calculator','MicrosoftStore'))) {
+            $ids = if ($spec.Name -eq 'OpenAI.Codex') { @('view_1','view_2','view_3','view_4') } else { @('Minimize','Maximize','Close') }
+            $buttons = @($result.captionAutomation | Where-Object { $_.id -in $ids })
             Require ($buttons.Count -eq 3) 'Independent UI Automation caption buttons are missing.'
             $result['verticalCenterErrors'] = @($buttons | ForEach-Object { (($bounds.Top+$bounds.Bottom)-($_.top+$_.bottom))/2 })
             foreach ($button in $buttons) {
@@ -217,8 +232,8 @@ function Test-WindowState($spec,$target,[string]$mode) {
         }
         for ($i=0;$i -lt 8;$i++) {
             Start-Sleep -Milliseconds 250
+            Require ([DesktopProbe]::GetForegroundWindow() -eq $hwnd) 'Foreground changed during the observation; not a stable-target overlay verdict.'
             Require ([DesktopProbe]::IsWindowVisible($oh) -and [DesktopProbe]::Bounds($oh).Same($bounds)) 'Overlay disappears or shifts during steady state.'
-            Require ([DesktopProbe]::GetForegroundWindow() -eq $hwnd) 'Foreground changed during the observation.'
             $result.stableSamples++
         }
         $null = [DesktopProbe]::CaptureCaption($hwnd,$normal)
@@ -268,6 +283,17 @@ $specs = @(
 )
 if ($RequireWindows11Coverage) {
     $specs += @{Name='Settings'; Kind='Package'; Package='windows.immersivecontrolpanel'; RequireNativeMatch=$false}
+}
+if ($ChatGPTOnly) {
+    Require ([bool]$RequireWindows11Coverage -and -not $SettingsOnly) 'ChatGPTOnly requires the prepared Windows 11 desktop.'
+    # The app can install additional OpenAI runtime/framework packages after
+    # launch. They have no launchable Applications manifest and are not apps.
+    $specs = @('OpenAI.Codex','OpenAI.ChatGPT-Desktop' | ForEach-Object {
+        @{Name=$_; Kind='Package'; Package=$_; RequireNativeMatch=$false}
+    })
+    foreach ($spec in $specs) {
+        Require (@($packages | Where-Object Name -eq $spec.Package).Count -eq 1) "Required desktop package missing: $($spec.Package)"
+    }
 }
 if ($SettingsOnly) {
     Require ([bool]$RequireWindows11Coverage) 'SettingsOnly requires the prepared Windows 11 desktop.'
@@ -360,7 +386,7 @@ finally {
 $failures = @($evidence.cases | Where-Object status -eq 'failed')
 Require ($failures.Count -eq 0) "$($failures.Count) real-app test cases failed. See results.json and screenshots."
 if ($RequireWindows11Coverage) {
-    $requiredApps = if ($SettingsOnly) { @('Settings') } else { @('Notepad','Explorer','MicrosoftStore','Calculator','Settings') }
+    $requiredApps = if ($ChatGPTOnly) { @($specs | ForEach-Object Name) } elseif ($SettingsOnly) { @('Settings') } else { @('Notepad','Explorer','MicrosoftStore','Calculator','Settings') }
     foreach ($required in $requiredApps) {
         foreach ($mode in @('normal','maximized','restored-narrow')) {
             $matched=@($evidence.cases | Where-Object { $_.app -eq $required -and $_.state -eq $mode -and $_.status -eq 'passed' })

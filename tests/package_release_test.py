@@ -52,6 +52,19 @@ class ReleaseEvidenceTest(unittest.TestCase):
             self.write(folder + "desktop-readiness.json", {"status": "ready"})
             self.write(folder + "results.json", results)
 
+        for dpi in (96, 144, 192):
+            folder = "real-app-evidence/real-app-evidence-chatgpt/"
+            if dpi != 96:
+                folder += f"settings-dpi-{dpi}/"
+            results = copy.deepcopy(self.results)
+            results["cases"] = [dict(app=app, state=mode, status="passed", hitPoints=5, stableSamples=8,
+                                     pixelGlyph={"Changed": 10}, pixelHover={"Changed": 20},
+                                     verticalCenterErrors=[0, 0, 0], caption={"Dpi": dpi})
+                                for app in ("OpenAI.Codex", "OpenAI.ChatGPT-Desktop")
+                                for mode in ("normal", "maximized", "restored-narrow")]
+            self.write(folder + "desktop-readiness.json", {"status": "ready"})
+            self.write(folder + "results.json", results)
+
     def write(self, name, value):
         file = self.root / name
         file.parent.mkdir(parents=True, exist_ok=True)
@@ -151,6 +164,18 @@ class ReleaseEvidenceTest(unittest.TestCase):
                        lambda c: c.update(verticalCenterErrors=[0, 1, 0])):
             value = copy.deepcopy(original)
             change(value["cases"][0])
+            path.write_text(json.dumps(value))
+            with self.assertRaises(ValueError):
+                PACKAGE.verify(self.root, "abc")
+
+    def test_chatgpt_gate_rejects_wrong_dpi_alignment_and_missing_state(self):
+        path = self.root / "real-app-evidence/real-app-evidence-chatgpt/settings-dpi-192/results.json"
+        original = json.loads(path.read_text())
+        for change in (lambda r: r["cases"][0].update(caption={"Dpi": 96}),
+                       lambda r: r["cases"][0].update(verticalCenterErrors=[0, 1, 0]),
+                       lambda r: r.update(cases=r["cases"][1:])):
+            value = copy.deepcopy(original)
+            change(value)
             path.write_text(json.dumps(value))
             with self.assertRaises(ValueError):
                 PACKAGE.verify(self.root, "abc")

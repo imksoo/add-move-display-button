@@ -1,0 +1,62 @@
+name: ChatGPT desktop caption diagnosis
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: chatgpt-caption-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DBUILD_TESTING=ON
+      - run: cmake --build build --config Release --parallel
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: chatgpt-test-executable
+          path: |
+            build/Release/MoveToMonitorButton.exe
+            build/Release/hosted_display_scale.exe
+          if-no-files-found: error
+  observe:
+    needs: build
+    runs-on: windows-11-arm
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Prepare disposable desktop and WSL prerequisites
+        timeout-minutes: 9
+        shell: powershell
+        run: ./tools/Initialize-HostedDesktop.ps1 -OutputDirectory chatgpt-evidence/desktop-setup -PrepareApplicationTests
+      - name: Verify exact two-color capture preflight
+        shell: powershell
+        run: ./tools/Test-DesktopReadiness.ps1 -OutputDirectory chatgpt-evidence
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: chatgpt-test-executable
+          path: app-under-test
+      - name: Install official ChatGPT and ChatGPT Classic from Microsoft Store
+        timeout-minutes: 12
+        shell: powershell
+        run: ./tools/Install-ChatGPTTestApps.ps1 -OutputDirectory chatgpt-evidence
+      - name: Observe actual window styles, caption input routing and product visibility
+        shell: powershell
+        run: ./tools/Test-RealApps.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -OutputDirectory chatgpt-evidence -RequireWindows11Coverage -ChatGPTOnly
+      - name: Verify actual ChatGPT caption geometry at 150 and 200 percent
+        shell: powershell
+        run: ./tools/Test-SettingsDpi.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -DisplaySetupPath app-under-test/hosted_display_scale.exe -OutputDirectory chatgpt-evidence -ChatGPTOnly
+      - name: Preserve diagnosis including failures
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: chatgpt-caption-evidence
+          path: chatgpt-evidence/
+          if-no-files-found: warn
+          retention-days: 14
