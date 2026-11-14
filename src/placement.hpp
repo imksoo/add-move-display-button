@@ -8,7 +8,7 @@
 
 namespace mtmb {
 inline constexpr wchar_t kAppName[] = L"MoveToMonitorButton";
-inline constexpr wchar_t kVersion[] = L"0.1.9";
+inline constexpr wchar_t kVersion[] = L"0.1.10";
 inline constexpr int kMaxMonitors = 64;
 
 struct Identity {

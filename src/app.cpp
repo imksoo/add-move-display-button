@@ -1,4 +1,7 @@
 #include "app.hpp"
+#if defined(_WIN32)
+#include "startup.hpp"
+#endif
 #include <algorithm>
 #include <tuple>
 
@@ -12,6 +15,9 @@ constexpr size_t kMaxExclusions = 64;
 constexpr UINT kMonitorCommand = 100, kPauseCommand = 1000, kExcludeCommand = 1001,
                kResetCommand = 1002, kAboutCommand = 1003, kExitCommand = 1004,
                kDiagnoseCommand = 1005, kCompatibilityCommand = 1006;
+#if defined(_WIN32)
+constexpr UINT kStartupCommand = 1007;
+#endif
 } // namespace
 
 thread_local Application* Application::eventOwner_ = nullptr;
@@ -260,7 +266,8 @@ void Application::show_about() {
         L" — MIT License\n\n"
         L"表示中のウィンドウに移動ボタンを重ねます（非アクティブも対象）。\n"
         L"左クリック: 次のモニター / 右クリック: 移動先を選択\n\n"
-        L"DLL注入・キーボードフック・通信・自動起動登録は行いません。\n"
+        L"DLL注入・キーボードフック・通信は行いません。\n"
+        L"サインイン時の自動起動はトレイメニューでオン／オフできます（既定はオフ）。\n"
         L"親だけでなく、実際の入力先ウィンドウも自動で判定します。\n"
         L"ボタンが出ない場合も、トレイメニューから移動できます。\n\n"
         L"試作版: 最大化の移動時には一瞬復元します。\n"
@@ -322,6 +329,12 @@ void Application::show_menu(POINT point, Identity target) {
                          : MF_GRAYED) |
                     (compatibility_enabled(target) ? MF_CHECKED : 0),
                 kCompatibilityCommand, L"このウィンドウだけ位置推定で表示（重なり注意）");
+#if defined(_WIN32)
+    const auto startup = startup_status();
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING | (startup.enabled ? MF_CHECKED : 0), kStartupCommand,
+                L"Windowsへのサインイン時に起動(&S)");
+#endif
     AppendMenuW(menu, MF_STRING, kAboutCommand, L"使い方・制限");
     AppendMenuW(menu, MF_STRING, kExitCommand, L"終了");
     // A zero-sized, off-screen tool window acts as the popup owner. Making the
@@ -353,6 +366,19 @@ void Application::show_menu(POINT point, Identity target) {
         show_diagnostics(target);
     } else if (command == kCompatibilityCommand) {
         toggle_compatibility(target);
+#if defined(_WIN32)
+    } else if (command == kStartupCommand) {
+        const LSTATUS error =
+            startup.error == ERROR_SUCCESS ? set_startup_enabled(!startup.enabled) : startup.error;
+        if (error != ERROR_SUCCESS) {
+            const std::wstring message =
+                L"自動起動の設定を変更できませんでした。エラー: " + std::to_wstring(error) +
+                (error == ERROR_FILENAME_EXCED_RANGE
+                     ? L"\nEXEを短いパスのフォルダーへ移動してから設定してください。"
+                     : L"");
+            MessageBoxW(state_.host.get(), message.c_str(), kAppName, MB_OK | MB_ICONERROR);
+        }
+#endif
     } else if (command == kAboutCommand) {
         show_about();
     } else if (command == kExitCommand) {

@@ -105,6 +105,29 @@ HWND await_inactive(DWORD pid, HWND target) {
     return nullptr;
 }
 
+// The fallback refresh runs every 500 ms and rotates through background targets.
+// Visibility alone can return the old topmost popup before that refresh finishes.
+// Wait for the actual band change, then require three consecutive observations.
+HWND await_ordinary_button(DWORD pid, HWND target) {
+    std::ofstream trace("inactive-topmost.txt");
+    const auto start = GetTickCount64();
+    int stable = 0;
+    for (int i = 0; i < 60; ++i) {
+        pump(100);
+        const HWND button = find_inactive(pid, target);
+        const auto targetStyle = GetWindowLongPtrW(target, GWL_EXSTYLE);
+        const auto buttonStyle = button ? GetWindowLongPtrW(button, GWL_EXSTYLE) : 0;
+        trace << GetTickCount64() - start << " ms target=" << targetStyle << " button=" << button
+              << " style=" << buttonStyle << std::endl;
+        CHECK(!(targetStyle & WS_EX_TOPMOST));
+        stable = button && !(buttonStyle & WS_EX_TOPMOST) ? stable + 1 : 0;
+        if (stable == 3) {
+            return button;
+        }
+    }
+    return nullptr;
+}
+
 RECT bounds(HWND window) {
     RECT result{};
     CHECK(GetWindowRect(window, &result));
@@ -426,8 +449,7 @@ int wmain(int argc, wchar_t** argv) {
         ShowWindow(neighbor.get(), SW_SHOWNOACTIVATE);
         CHECK(SetWindowPos(inactive.get(), HWND_NOTOPMOST, 0, 0, 0, 0,
                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE));
-        pump(800);
-        button = await_inactive(product.pid, inactive.get());
+        button = await_ordinary_button(product.pid, inactive.get());
         CHECK(button && !(GetWindowLongPtrW(button, GWL_EXSTYLE) & WS_EX_TOPMOST));
         neighbor.reset();
         // Switching activation replaces the old background button, not a duplicate.

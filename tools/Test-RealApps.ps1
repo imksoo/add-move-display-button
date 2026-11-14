@@ -3,7 +3,9 @@ param(
     [Parameter(Mandatory=$true)][string]$ExecutablePath,
     [string]$OutputDirectory = 'real-app-evidence',
     [switch]$AllowDesktopCapture,
-    [switch]$RequireWindows11Coverage
+    [switch]$RequireWindows11Coverage,
+    [switch]$SettingsOnly,
+    [int]$ExpectedDpi = 0
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -20,6 +22,7 @@ if (@(Get-Process -Name MoveToMonitorButton -ErrorAction SilentlyContinue).Count
 $probe = Join-Path $PSScriptRoot '../tests/desktop/DesktopProbe.cs'
 Add-Type -Path $probe -ReferencedAssemblies System.Drawing.dll
 if ($RequireWindows11Coverage) {
+    Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
     if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Hosted input setup is restricted to disposable GitHub runners.' }
     Add-Type -Path (Join-Path $PSScriptRoot '../tests/desktop/HostedDesktopSetup.cs') -ReferencedAssemblies System.dll,System.Drawing.dll,System.Windows.Forms.dll
 }
@@ -29,7 +32,7 @@ $chromeProfile = Join-Path ([IO.Path]::GetTempPath()) ('mtmb-chrome-'+[guid]::Ne
 $oldCursor = New-Object DesktopProbe+Point
 $null = [DesktopProbe]::GetCursorPos([ref]$oldCursor)
 $os = Get-CimInstance Win32_OperatingSystem
-$packages = @(Get-AppxPackage | Where-Object { $_.Name -match 'WindowsNotepad|WindowsStore|WindowsCalculator' })
+$packages = @(Get-AppxPackage | Where-Object { $_.Name -match 'WindowsNotepad|WindowsStore|WindowsCalculator|immersivecontrolpanel' })
 $evidence = [ordered]@{
     schemaVersion = 1
     commit = $env:GITHUB_SHA
@@ -125,7 +128,29 @@ function Test-WindowState($spec,$target,[string]$mode) {
         Require ([DesktopProbe]::GetForegroundWindow() -eq $hwnd) 'Test cannot obtain target foreground; not an overlay verdict.'
         Require ([DesktopProbe]::IsZoomed($hwnd) -eq ($mode -eq 'maximized')) 'Target did not reach the requested window state.'
         $caption = [DesktopProbe]::Caption($hwnd)
+        # Only retry an observer timeout while the target settles. A valid native
+        # measurement is still mandatory, before launching the product; preserve
+        # every timeout instead of treating missing metadata as a pass.
+        $result['captionQueryErrors'] = @()
+        $captionDeadline = [DateTime]::UtcNow.AddSeconds(2)
+        while ($spec.RequireNativeMatch -and -not $caption.TitleQueryOk -and $caption.TitleQueryError -eq 1460 -and [DateTime]::UtcNow -lt $captionDeadline) {
+            $result.captionQueryErrors += $caption.TitleQueryError
+            Start-Sleep -Milliseconds 100
+            $caption = [DesktopProbe]::Caption($hwnd)
+        }
         $result.caption = $caption
+        if ($ExpectedDpi) { Require ($caption.Dpi -eq $ExpectedDpi) "Actual window DPI $($caption.Dpi) differs from required $ExpectedDpi." }
+        if ($RequireWindows11Coverage -and $spec.Name -in @('Settings','Calculator','MicrosoftStore')) {
+            $result['childTitlebars'] = @($caption.Children | Where-Object Class -eq 'ApplicationFrameTitleBarWindow' | ForEach-Object { [DesktopProbe]::Caption([IntPtr]$_.Handle) })
+            $element = [System.Windows.Automation.AutomationElement]::FromHandle($hwnd)
+            $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Button)
+            $result['captionAutomation'] = @($element.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition) | ForEach-Object {
+                $info=$_.Current; $r=$info.BoundingRectangle
+                if (-not $info.IsOffscreen -and $r.Width -gt 0 -and $r.Height -gt 0 -and $r.Top -lt ($caption.Frame.Top+100*$caption.Dpi/96) -and $r.Left -gt ($caption.Frame.Right-240*$caption.Dpi/96)) {
+                    [pscustomobject]@{ id=$info.AutomationId; name=$info.Name; left=$r.Left; top=$r.Top; right=$r.Right; bottom=$r.Bottom; process=$info.ProcessId; handle=$info.NativeWindowHandle }
+                }
+            })
+        }
         $prefix = "$($spec.Name)-$mode"
         $baseline = Join-Path $out "$prefix-baseline.png"
         $normal = Join-Path $out "$prefix-normal.png"
@@ -152,6 +177,15 @@ function Test-WindowState($spec,$target,[string]$mode) {
         Require ($null -ne $overlay) 'Overlay not visible on the real application.'
         $bounds = [DesktopProbe]::Bounds([IntPtr]$overlay.Handle)
         $result.overlay = $bounds
+        if ($RequireWindows11Coverage -and $spec.Name -in @('Settings','Calculator','MicrosoftStore')) {
+            $buttons = @($result.captionAutomation | Where-Object { $_.id -in @('Minimize','Maximize','Close') })
+            Require ($buttons.Count -eq 3) 'Independent UI Automation caption buttons are missing.'
+            $result['verticalCenterErrors'] = @($buttons | ForEach-Object { (($bounds.Top+$bounds.Bottom)-($_.top+$_.bottom))/2 })
+            foreach ($button in $buttons) {
+                Require ([Math]::Abs(($bounds.Top+$bounds.Bottom)-($button.top+$button.bottom)) -le 1) 'Overlay vertical center differs from an actual caption button by more than half a pixel.'
+                Require ($bounds.Right -le $button.left -or $bounds.Left -ge $button.right -or $bounds.Bottom -le $button.top -or $bounds.Top -ge $button.bottom) 'Overlay overlaps an independently measured caption button.'
+            }
+        }
         Require ($caption.Window.Contains($bounds)) 'Overlay outside target bounds.'
         Require ($work.Contains($bounds)) 'Overlay outside monitor work area.'
         if ($caption.DwmControlsOk) { Require (-not $bounds.Overlaps($caption.Controls)) 'Overlay overlaps the native caption controls.' }
@@ -232,6 +266,13 @@ $specs = @(
     @{Name='WPF-fixture'; Kind='Framework'; Framework='WPF'; Package=$null; RequireNativeMatch=$true},
     @{Name='WinForms-fixture'; Kind='Framework'; Framework='WinForms'; Package=$null; RequireNativeMatch=$true}
 )
+if ($RequireWindows11Coverage) {
+    $specs += @{Name='Settings'; Kind='Package'; Package='windows.immersivecontrolpanel'; RequireNativeMatch=$false}
+}
+if ($SettingsOnly) {
+    Require ([bool]$RequireWindows11Coverage) 'SettingsOnly requires the prepared Windows 11 desktop.'
+    $specs = @($specs | Where-Object Name -eq 'Settings')
+}
 try {
     Require ([Environment]::UserInteractive) 'No interactive desktop.'
     Save-Evidence
@@ -319,7 +360,8 @@ finally {
 $failures = @($evidence.cases | Where-Object status -eq 'failed')
 Require ($failures.Count -eq 0) "$($failures.Count) real-app test cases failed. See results.json and screenshots."
 if ($RequireWindows11Coverage) {
-    foreach ($required in @('Notepad','Explorer','MicrosoftStore','Calculator')) {
+    $requiredApps = if ($SettingsOnly) { @('Settings') } else { @('Notepad','Explorer','MicrosoftStore','Calculator','Settings') }
+    foreach ($required in $requiredApps) {
         foreach ($mode in @('normal','maximized','restored-narrow')) {
             $matched=@($evidence.cases | Where-Object { $_.app -eq $required -and $_.state -eq $mode -and $_.status -eq 'passed' })
             Require ($matched.Count -eq 1) "Required Windows 11 coverage missing: $required / $mode"
