@@ -166,9 +166,10 @@ jobs:
         with:
           name: real-app-test-executable
           path: app-under-test
-      - name: Prepare disposable desktop
+      - name: Prepare disposable desktop and WSL prerequisites
+        timeout-minutes: 9
         shell: powershell
-        run: ./tools/Initialize-HostedDesktop.ps1 -OutputDirectory chatgpt-evidence/desktop-setup
+        run: ./tools/Initialize-HostedDesktop.ps1 -OutputDirectory chatgpt-evidence/desktop-setup -PrepareApplicationTests
       - name: Verify exact two-color capture preflight
         shell: powershell
         run: ./tools/Test-DesktopReadiness.ps1 -OutputDirectory chatgpt-evidence

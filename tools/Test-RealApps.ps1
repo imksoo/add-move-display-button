@@ -232,8 +232,8 @@ function Test-WindowState($spec,$target,[string]$mode) {
         }
         for ($i=0;$i -lt 8;$i++) {
             Start-Sleep -Milliseconds 250
+            Require ([DesktopProbe]::GetForegroundWindow() -eq $hwnd) 'Foreground changed during the observation; not a stable-target overlay verdict.'
             Require ([DesktopProbe]::IsWindowVisible($oh) -and [DesktopProbe]::Bounds($oh).Same($bounds)) 'Overlay disappears or shifts during steady state.'
-            Require ([DesktopProbe]::GetForegroundWindow() -eq $hwnd) 'Foreground changed during the observation.'
             $result.stableSamples++
         }
         $null = [DesktopProbe]::CaptureCaption($hwnd,$normal)
