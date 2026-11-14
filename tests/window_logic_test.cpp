@@ -1054,6 +1054,20 @@ int main() {
     ApplicationTestAccess::button(*fake::application, fake::button, WM_MOUSELEAVE, 0, 0);
     CHECK(!fake::state().hover && fake::state().hoverPart == -1);
 
+    // A delayed down still belongs to its event's cell, even if the cursor is
+    // already over the other cell when the UI thread processes it.
+    const int width = fake::overlay.right - fake::overlay.left;
+    const int height = fake::overlay.bottom - fake::overlay.top;
+    fake::cursor = {fake::overlay.left + 3 * width / 4, fake::overlay.top + height / 2};
+    ApplicationTestAccess::button(*fake::application, fake::button, WM_LBUTTONDOWN, 0,
+                                  MAKELPARAM(width / 4, height / 2));
+    CHECK(fake::state().pressed && fake::state().pressedPart == 0);
+    ApplicationTestAccess::button(*fake::application, fake::button, WM_LBUTTONUP, 0,
+                                  MAKELPARAM(3 * width / 4, height / 2));
+    CHECK(!fake::state().move.active() && !fake::state().pressed);
+    const auto outside = win32::mouse_message_point(MAKELPARAM(-4, -7));
+    CHECK(outside.x == -4 && outside.y == -7);
+
     for (const int direction : {-1, 1}) {
         fake::reset();
         auto& displays = fake::state().monitors;

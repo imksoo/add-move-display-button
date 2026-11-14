@@ -635,9 +635,7 @@ LRESULT Application::on_button(HWND hwnd, UINT message, WPARAM wParam, LPARAM lP
         request_refresh();
         return 0;
     case WM_LBUTTONDOWN: {
-        POINT point{};
-        GetCursorPos(&point);
-        ScreenToClient(hwnd, &point);
+        const POINT point = win32::mouse_message_point(lParam);
         const int part = caption_part(hwnd, point, state_.buttonCount);
         if (part >= 0 && alive(state_.target) && GetForegroundWindow() == state_.target.hwnd) {
             state_.pressed = true;
@@ -658,9 +656,7 @@ LRESULT Application::on_button(HWND hwnd, UINT message, WPARAM wParam, LPARAM lP
         if (GetCapture() == hwnd) {
             ReleaseCapture();
         }
-        POINT p{};
-        GetCursorPos(&p);
-        ScreenToClient(hwnd, &p);
+        const POINT p = win32::mouse_message_point(lParam);
         if (!state_.topologyDirty && pressedPart >= 0 && same_window(clicked, state_.target) &&
             GetForegroundWindow() == clicked.hwnd &&
             caption_part(hwnd, p, state_.buttonCount) == pressedPart) {

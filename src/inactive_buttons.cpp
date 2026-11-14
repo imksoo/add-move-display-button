@@ -282,9 +282,7 @@ LRESULT InactiveButtons::message(Button& button, HWND hwnd, UINT msg, WPARAM wp,
         paint(button);
         return 0;
     case WM_LBUTTONDOWN: {
-        POINT point{};
-        GetCursorPos(&point);
-        ScreenToClient(hwnd, &point);
+        const POINT point = win32::mouse_message_point(lp);
         const int part = caption_part(hwnd, point, button.count);
         if (part >= 0 && app_.eligible(button.target)) {
             button.pressed = true;
@@ -302,10 +300,9 @@ LRESULT InactiveButtons::message(Button& button, HWND hwnd, UINT msg, WPARAM wp,
         if (GetCapture() == hwnd) {
             ReleaseCapture();
         }
-        POINT cursor{};
-        GetCursorPos(&cursor);
-        const HWND under = WindowFromPoint(cursor);
-        ScreenToClient(hwnd, &cursor);
+        const POINT cursor = win32::mouse_message_point(lp);
+        POINT screen = cursor;
+        const HWND under = ClientToScreen(hwnd, &screen) ? WindowFromPoint(screen) : nullptr;
         if (!app_.state_.topologyDirty && pressedPart >= 0 &&
             caption_part(hwnd, cursor, button.count) == pressedPart && under == hwnd &&
             app_.eligible(button.target)) {

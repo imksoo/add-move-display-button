@@ -7,6 +7,14 @@
 #include <utility>
 
 namespace mtmb::win32 {
+// Mouse-message coordinates describe the event, unlike GetCursorPos after a
+// queued event. Preserve signed 16-bit client coordinates (including capture
+// releases outside the window), equivalent to GET_X_LPARAM / GET_Y_LPARAM.
+inline POINT mouse_message_point(LPARAM value) noexcept {
+    const auto packed = static_cast<ULONG_PTR>(value);
+    return {static_cast<short>(packed & 0xffffU), static_cast<short>((packed >> 16) & 0xffffU)};
+}
+
 // Only for handles we OWN. Target HWNDs and LoadIcon/GetStockObject results are borrowed.
 // The standard unique_ptr owns the lifetime; the deleter supplies the SDK release function.
 template <auto Release> struct ResourceDeleter {
