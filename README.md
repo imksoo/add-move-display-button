@@ -33,7 +33,7 @@ ctest --test-dir build -C Release --output-on-failure --verbose
 ./tools/Test-Startup.ps1 -ExecutablePath build/Release/MoveToMonitorButton.exe -OutputPath build/startup-result.json
 ```
 
-起動試験は専用の対話デスクトップで実行してください。既に常駐している同アプリがある場合は試験しません。コードは[設計説明](docs/ARCHITECTURE.md)の単位に分けています。
+起動試験は専用の対話デスクトップで実行してください。既に常駐している同アプリがある場合は試験しません。コードは[設計説明](https://github.com/imksoo/add-move-display-button/blob/main/docs/ARCHITECTURE.md)の単位に分けています。
 
 ## CIとリリース
 
@@ -41,9 +41,9 @@ ctest --test-dir build -C Release --output-on-failure --verbose
 
 非アクティブ操作は、配布する実EXEと2枚の検証用ウィンドウを使い、ホバーでの非アクティブ維持、最初の左押下とキャンセル、最初の右クリックメニュー、重なり、最小化、位置追従、前面切替、終了を検査します。1画面での試験なので、物理モニター間の左クリック移動そのものを実証したものではありません。
 
-すべての必須ジョブが成功した場合に限り、同じEXEのハッシュと結果を再照合してリリース用ファイルを作ります。`main`ではGitHub ReleasesへEXE・ポータブルZIP・証跡ZIP・SHA256SUMSを公開します。公開前にアップロード済みファイルを再ダウンロードしてハッシュを確認し、既存リリースの同名資産は上書きしません。
+すべての必須ジョブが成功した場合に限り、同じEXEのハッシュと結果を再照合してリリース用ファイルを作ります。`main`ではGitHub ReleasesへEXE・ポータブルZIP・SHA256SUMSを公開します。ポータブルZIPの内容はEXE・README・LICENSE・EXEのSHA256SUMSの4点です。試験結果、ログ、画面画像、ビルド情報はActionsの成果物に14〜30日保持し、配布ZIPには含めません。リリース説明には検証したActions実行へのリンクを載せます。公開前にアップロード済みファイルを再ダウンロードしてハッシュを確認し、既存リリースの同名資産は上書きしません。
 
-Windows 11 Armの使い捨てランナーでは、初回privacy UIなどの環境準備を別ステップで行い、元の厳密な2色preflightの後、現行Notepad／Explorer／Store／電卓の通常・最大化・復元後12条件を同じjobで検査します。[Issue #2の診断・修復と証跡](docs/WINDOWS11-DESKTOP-DIAGNOSIS.md)を参照してください。Store／電卓が未登録ならunavailableであり、Serverの成功で代替しません。この検証結果は記録したコミットのx64 EXEに対するもので、公開済みv0.1.8への遡及的な合格宣言ではありません。混在DPIや全テーマの実機確認も別の検証です。
+Windows 11 Armの使い捨てランナーでは、初回privacy UIなどの環境準備を別ステップで行い、元の厳密な2色preflightの後、現行Notepad／Explorer／Store／電卓の通常・最大化・復元後12条件を同じjobで検査します。[Issue #2の診断・修復と証跡](https://github.com/imksoo/add-move-display-button/blob/main/docs/WINDOWS11-DESKTOP-DIAGNOSIS.md)を参照してください。Store／電卓が未登録ならunavailableであり、Serverの成功で代替しません。この検証結果は記録したコミットのx64 EXEに対するもので、公開済みv0.1.8への遡及的な合格宣言ではありません。混在DPIや全テーマの実機確認も別の検証です。
 
 LinuxではWindows EXEを生成せず、APIダブルによるロジック試験のみを行います。
 

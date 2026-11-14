@@ -97,6 +97,7 @@ class ReleaseEvidenceTest(unittest.TestCase):
         readiness = self.root / "real-app-evidence/real-app-evidence-windows-2025/desktop-readiness.json"
         readiness.write_text(json.dumps({"status": "ready", "description": "画面確認"},
                                        ensure_ascii=False), encoding="utf-16")
+        readiness_bytes = readiness.read_bytes()
         for name in ("README.md", "LICENSE", "Check-Startup.cmd", "test-results.xml"):
             (self.root / name).write_text("test fixture", encoding="utf-8")
         (self.root / "SHA256SUMS.txt").write_text(
@@ -106,7 +107,9 @@ class ReleaseEvidenceTest(unittest.TestCase):
         output = self.root / "release-assets"
         self.assertEqual(PACKAGE.package(self.root, output, "abc"), ("0.1.8", self.digest))
         manifest = (output / "SHA256SUMS.txt").read_text(encoding="ascii").splitlines()
-        self.assertEqual(len(manifest), 3)
+        self.assertEqual(len(manifest), 2)
+        self.assertEqual({file.name for file in output.iterdir()}, {
+            "MoveToMonitorButton.exe", "MoveToMonitorButton-v0.1.8-windows-x64.zip", "SHA256SUMS.txt"})
         for line in manifest:
             digest, name = line.split("  ", 1)
             self.assertEqual(PACKAGE.sha256(output / name), digest)
@@ -114,10 +117,11 @@ class ReleaseEvidenceTest(unittest.TestCase):
         with zipfile.ZipFile(portable) as archive:
             self.assertEqual(archive.read("MoveToMonitorButton.exe"),
                              (self.root / "MoveToMonitorButton.exe").read_bytes())
-            self.assertIn("docs/ARCHITECTURE.md", archive.namelist())
-        with zipfile.ZipFile(output / "MoveToMonitorButton-v0.1.8-test-evidence.zip") as archive:
-            relative = readiness.relative_to(self.root).as_posix()
-            self.assertEqual(archive.read(relative), readiness.read_bytes())
+            self.assertEqual(set(archive.namelist()), {
+                "MoveToMonitorButton.exe", "README.md", "LICENSE", "SHA256SUMS.txt"})
+            self.assertEqual(archive.read("SHA256SUMS.txt"),
+                             (self.root / "SHA256SUMS.txt").read_bytes())
+        self.assertEqual(readiness.read_bytes(), readiness_bytes)
         with self.assertRaisesRegex(ValueError, "Refusing to replace"):
             PACKAGE.package(self.root, output, "abc")
 

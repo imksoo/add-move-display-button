@@ -75,15 +75,9 @@ def package(root: Path, output: Path, commit: str) -> tuple[str, str]:
     output.mkdir(parents=True)
     shutil.copy2(root / "MoveToMonitorButton.exe", output / "MoveToMonitorButton.exe")
     application = [root / name for name in (
-        "MoveToMonitorButton.exe", "README.md", "LICENSE", "Check-Startup.cmd",
-        "build-info.json", "startup-result.json", "test-results.xml", "SHA256SUMS.txt")]
-    application += list((root / "docs").glob("*.md"))
+        "MoveToMonitorButton.exe", "README.md", "LICENSE", "SHA256SUMS.txt")]
     portable = output / f"MoveToMonitorButton-v{version}-windows-x64.zip"
     write_zip(portable, application, root)
-    evidence = [file for file in (root / "real-app-evidence").rglob("*")
-                if file.is_file() and file.suffix.lower() in (".json", ".png", ".bmp", ".md", ".txt")]
-    evidence += [root / "build-info.json", root / "startup-result.json", root / "test-results.xml"]
-    write_zip(output / f"MoveToMonitorButton-v{version}-test-evidence.zip", evidence, root)
     (output / "SHA256SUMS.txt").write_text(
         "".join(f"{sha256(file)}  {file.name}\n" for file in sorted(output.iterdir())), encoding="ascii")
     print(f"Verified {version}: 36 real-app cases, including 30 native-size matches; EXE {digest}")
