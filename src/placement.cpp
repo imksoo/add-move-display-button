@@ -67,6 +67,7 @@ private:
     const PlacementContext& context_;
     std::optional<RECT> bounds_;
     PlacementDiagnosis diagnosis_;
+    ULONGLONG started_ = 0;
 
     bool input_belongs_to(HWND target, HWND input) const {
         if (!input || input == context_.button || input == context_.host) {
@@ -97,7 +98,12 @@ private:
         return input;
     }
 
-    bool probe_caption(HWND hwnd, int x, int y, bool& unavailable) {
+    bool probe_hit(HWND hwnd, int x, int y, bool& unavailable) {
+        if (diagnosis_.probes >= 160 || GetTickCount64() - started_ >= 75) {
+            diagnosis_.reason = PlacementReason::BudgetExhausted;
+            unavailable = true;
+            return false;
+        }
         // A false SendMessageTimeout return is not necessarily a timeout. Clear the
         // thread error FIRST and capture it BEFORE making any further API calls.
         if (x < -32768 || x > 32767 || y < -32768 || y > 32767) {
@@ -124,7 +130,11 @@ private:
             ++diagnosis_.routedProbes;
         }
         diagnosis_.lastHit = static_cast<LRESULT>(result);
-        return diagnosis_.lastHit == HTCAPTION;
+        return true;
+    }
+
+    bool probe_caption(HWND hwnd, int x, int y, bool& unavailable) {
+        return probe_hit(hwnd, x, y, unavailable) && diagnosis_.lastHit == HTCAPTION;
     }
 
     bool safe_caption_rect(HWND hwnd, mtmb::Rect r, bool& unavailable,
@@ -278,6 +288,89 @@ private:
         return std::nullopt;
     }
 
+    std::optional<RECT> custom_button(const RECT& frame, UINT dpi, bool& unavailable) {
+        // Custom Chromium/Electron frames can expose correct WM_NCHITTEST control
+        // regions while DWM has no bounds and TITLEBARINFOEX invents a classic row.
+        // Measure a real minimize region, validate its maximize neighbor, then let
+        // the existing five routed caption probes independently approve placement.
+        const auto hit = [&](int x, int y, LRESULT expected) {
+            return !unavailable && probe_hit(target_.hwnd, x, y, unavailable) &&
+                   diagnosis_.lastHit == expected;
+        };
+        const int limit =
+            mtmb::clamp(dip(300, dpi), 0, static_cast<int>((frame.right - frame.left) / 2));
+        for (const int dy : {18, 30}) {
+            const int y = static_cast<int>(frame.top) + dip(dy, dpi);
+            for (int dx = dip(12, dpi); dx <= limit; dx += dip(12, dpi)) {
+                const int x = static_cast<int>(frame.right) - dx;
+                if (!hit(x, y, HTMINBUTTON)) {
+                    if (unavailable) {
+                        return std::nullopt;
+                    }
+                    continue;
+                }
+                // Binary searches are bounded to a plausible single caption
+                // button. Rectangles remain physical screen coordinates at any DPI.
+                const auto edge = [&](int low, int high, bool horizontal, bool first) {
+                    while (low < high && !unavailable) {
+                        const int middle = low + (high - low) / 2;
+                        const bool inside =
+                            hit(horizontal ? middle : x, horizontal ? y : middle, HTMINBUTTON);
+                        if (inside == first) {
+                            high = middle;
+                        } else {
+                            low = middle + 1;
+                        }
+                    }
+                    return low;
+                };
+                const int leftLimit =
+                    mtmb::clamp(x - dip(100, dpi), static_cast<int>(frame.left), x);
+                const int rightLimit =
+                    mtmb::clamp(x + dip(100, dpi), x, static_cast<int>(frame.right));
+                const int bottomLimit = mtmb::clamp(static_cast<int>(frame.top) + dip(72, dpi), y,
+                                                    static_cast<int>(frame.bottom));
+                RECT button{edge(leftLimit, x, true, true),
+                            edge(static_cast<int>(frame.top), y, false, true),
+                            edge(x, rightLimit, true, false), edge(y, bottomLimit, false, false)};
+                if (unavailable) {
+                    return std::nullopt;
+                }
+                const int width = static_cast<int>(button.right - button.left);
+                const int height = static_cast<int>(button.bottom - button.top);
+                if (width < dip(12, dpi) || width >= dip(100, dpi) || height < dip(12, dpi) ||
+                    height >= dip(72, dpi) || button.left == leftLimit ||
+                    button.right == rightLimit || button.bottom == bottomLimit ||
+                    !contains(rect(frame), rect(button))) {
+                    return std::nullopt;
+                }
+                const int centerY = static_cast<int>((button.top + button.bottom) / 2);
+                const int nextX = static_cast<int>(button.right) + width / 2;
+                if (nextX >= frame.right || !hit(nextX, centerY, HTMAXBUTTON)) {
+                    return std::nullopt;
+                }
+                // Exclude the entire right-hand control group, including close.
+                // Confirm corners so a non-rectangular hit region is not treated
+                // as an exact reference button.
+                for (const int px :
+                     {static_cast<int>(button.left) + 2, static_cast<int>(button.right) - 3}) {
+                    for (const int py :
+                         {static_cast<int>(button.top) + 2, static_cast<int>(button.bottom) - 3}) {
+                        if (!hit(px, py, HTMINBUTTON)) {
+                            return std::nullopt;
+                        }
+                    }
+                }
+                diagnosis_.referenceIndex = 2;
+                diagnosis_.referenceButton = button;
+                diagnosis_.controls = {button.left, button.top, frame.right, button.bottom};
+                diagnosis_.measuredGap = 0;
+                return button;
+            }
+        }
+        return std::nullopt;
+    }
+
     std::optional<RECT> hosted_titlebar(const RECT& frame, UINT dpi) {
         wchar_t name[64]{};
         if (!GetClassNameW(target_.hwnd, name, _countof(name)) ||
@@ -307,7 +400,7 @@ private:
 
     bool calculate() {
         const Identity id = target_;
-        const ULONGLONG started = GetTickCount64();
+        const ULONGLONG started = started_ = GetTickCount64();
         const int monitorIndex =
             context_.monitors.index_of(MonitorFromWindow(id.hwnd, MONITOR_DEFAULTTONEAREST));
         if (monitorIndex < 0) {
@@ -372,7 +465,14 @@ private:
             }
         }
         diagnosis_.controls = controls;
-        const auto measured = measured_button(window, controls, frame, monitor.dpi, dwm);
+        const auto style = static_cast<DWORD_PTR>(GetWindowLongPtrW(id.hwnd, GWL_STYLE));
+        const bool custom = !dwm && ((style & WS_CAPTION) != WS_CAPTION || !(style & WS_SYSMENU));
+        bool unavailable = false;
+        const auto measured = custom ? custom_button(frame, monitor.dpi, unavailable)
+                                     : measured_button(window, controls, frame, monitor.dpi, dwm);
+        if (unavailable) {
+            return false;
+        }
         controls = diagnosis_.controls;
         // Prefer the neighboring standard button's exact width, height and
         // vertical alignment. Never bypass input hit-testing to make it fit.

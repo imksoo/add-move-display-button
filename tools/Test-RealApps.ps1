@@ -191,8 +191,9 @@ function Test-WindowState($spec,$target,[string]$mode) {
         Require ($null -ne $overlay) 'Overlay not visible on the real application.'
         $bounds = [DesktopProbe]::Bounds([IntPtr]$overlay.Handle)
         $result.overlay = $bounds
-        if ($RequireWindows11Coverage -and $spec.Name -in @('Settings','Calculator','MicrosoftStore')) {
-            $buttons = @($result.captionAutomation | Where-Object { $_.id -in @('Minimize','Maximize','Close') })
+        if ($RequireWindows11Coverage -and ($spec.Name -eq 'OpenAI.Codex' -or $spec.Name -in @('Settings','Calculator','MicrosoftStore'))) {
+            $ids = if ($spec.Name -eq 'OpenAI.Codex') { @('view_1','view_2','view_3','view_4') } else { @('Minimize','Maximize','Close') }
+            $buttons = @($result.captionAutomation | Where-Object { $_.id -in $ids })
             Require ($buttons.Count -eq 3) 'Independent UI Automation caption buttons are missing.'
             $result['verticalCenterErrors'] = @($buttons | ForEach-Object { (($bounds.Top+$bounds.Bottom)-($_.top+$_.bottom))/2 })
             foreach ($button in $buttons) {
@@ -381,14 +382,7 @@ finally {
 $failures = @($evidence.cases | Where-Object status -eq 'failed')
 Require ($failures.Count -eq 0) "$($failures.Count) real-app test cases failed. See results.json and screenshots."
 if ($RequireWindows11Coverage) {
-    $requiredApps = if ($ChatGPTOnly) {
-    Require ([bool]$RequireWindows11Coverage -and -not $SettingsOnly) 'ChatGPTOnly requires the prepared Windows 11 desktop.'
-    $specs = @($packages | Where-Object Name -like 'OpenAI.*' | ForEach-Object {
-        @{Name=$_.Name; Kind='Package'; Package=$_.Name; RequireNativeMatch=$false}
-    })
-    Require ($specs.Count -gt 0) 'No installed OpenAI desktop package.'
-}
-if ($SettingsOnly) { @('Settings') } else { @('Notepad','Explorer','MicrosoftStore','Calculator','Settings') }
+    $requiredApps = if ($ChatGPTOnly) { @($specs | ForEach-Object Name) } elseif ($SettingsOnly) { @('Settings') } else { @('Notepad','Explorer','MicrosoftStore','Calculator','Settings') }
     foreach ($required in $requiredApps) {
         foreach ($mode in @('normal','maximized','restored-narrow')) {
             $matched=@($evidence.cases | Where-Object { $_.app -eq $required -and $_.state -eq $mode -and $_.status -eq 'passed' })
