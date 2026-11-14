@@ -5,50 +5,51 @@
 
 namespace mtmb {
 namespace {
-LPCWSTR reason_text(PlacementReason reason) {
+LPCWSTR reason_text(PlacementReason reason, Language language) {
+    const auto tr = [language](Text text) { return translate(language, text); };
     switch (reason) {
     case PlacementReason::MatchedCaption:
-        return L"表示可能: 標準ボタンの実測寸法・縦位置に一致（入力先5点確認）";
+        return tr(Text::ReasonMatchedCaption);
     case PlacementReason::NotChecked:
-        return L"未検査";
+        return tr(Text::ReasonNotChecked);
     case PlacementReason::CoordinateOutOfRange:
-        return L"座標がWM_NCHITTESTの16ビット範囲外";
+        return tr(Text::ReasonCoordinateOutOfRange);
     case PlacementReason::AccessDenied:
-        return L"タイトルバー判定: アクセス拒否 (5)";
+        return tr(Text::ReasonAccessDenied);
     case PlacementReason::Timeout:
-        return L"タイトルバー判定: タイムアウト (1460)";
+        return tr(Text::ReasonTimeout);
     case PlacementReason::ApiFailure:
-        return L"タイトルバー判定: API失敗（タイムアウトとは限りません）";
+        return tr(Text::ReasonApiFailure);
     case PlacementReason::NoMonitor:
-        return L"対象モニター未取得";
+        return tr(Text::ReasonNoMonitor);
     case PlacementReason::TargetBusy:
-        return L"対象が移動・サイズ変更・メニュー操作中";
+        return tr(Text::ReasonTargetBusy);
     case PlacementReason::NoWindowBounds:
-        return L"ウィンドウ矩形を取得できません";
+        return tr(Text::ReasonNoWindowBounds);
     case PlacementReason::Fullscreen:
-        return L"全画面ウィンドウのため非表示";
+        return tr(Text::ReasonFullscreen);
     case PlacementReason::CaptionTooShort:
-        return L"タイトルバーの高さ不足";
+        return tr(Text::ReasonCaptionTooShort);
     case PlacementReason::RoutedCaption:
-        return L"表示可能: 入力先ウィンドウのタイトルバー5点確認（自動）";
+        return tr(Text::ReasonRoutedCaption);
     case PlacementReason::StandardCaption:
-        return L"表示可能: 標準タイトルバー5点確認済み";
+        return tr(Text::ReasonStandardCaption);
     case PlacementReason::CompactCaption:
-        return L"表示可能: 入力先確認＋小型ボタンの位置を上下補正（自動）";
+        return tr(Text::ReasonCompactCaption);
     case PlacementReason::Estimate:
-        return L"表示可能: 個別に有効化された位置推定（他の操作部と重なる場合あり）";
+        return tr(Text::ReasonEstimate);
     case PlacementReason::BudgetExhausted:
-        return L"タイトルバー候補を検出できず（探索予算の上限）";
+        return tr(Text::ReasonBudgetExhausted);
     case PlacementReason::InputUnresolved:
-        return L"入力先ウィンドウを特定できず";
+        return tr(Text::ReasonInputUnresolved);
     case PlacementReason::Occluded:
-        return L"別ウィンドウによる重なり／利用できる候補なし";
+        return tr(Text::ReasonOccluded);
     case PlacementReason::NoCaption:
-        return L"入力先のタイトルバー判定なし／余白不足（HTCLIENTだけでは空きか不明）";
+        return tr(Text::ReasonNoCaption);
     case PlacementReason::Ineligible:
-        return L"表示対象外: スタイル／状態／除外設定を確認";
+        return tr(Text::ReasonIneligible);
     }
-    return L"不明な判定";
+    return tr(Text::UnknownReason);
 }
 
 std::wostream& operator<<(std::wostream& stream, const RECT& bounds) {
@@ -80,7 +81,9 @@ ElevationQuery process_elevation(DWORD pid) {
 }
 
 std::wstring format_diagnostics(Identity target, const PlacementResult& placement,
-                                bool estimateEnabled, bool paused, int monitorCount) {
+                                bool estimateEnabled, bool paused, int monitorCount,
+                                Language language) {
+    const auto tr = [language](Text text) { return translate(language, text); };
     const auto& diagnosis = placement.diagnosis;
     const auto self = process_elevation(GetCurrentProcessId());
     const auto other = process_elevation(target.pid);
@@ -90,19 +93,18 @@ std::wstring format_diagnostics(Identity target, const PlacementResult& placemen
         GetClassNameW(diagnosis.hitWindow, inputClass, _countof(inputClass));
     }
     std::wostringstream text;
-    text << kAppName << L' ' << kVersion << L" 表示診断\n";
-    text << L"判定: " << reason_text(diagnosis.reason);
+    text << kAppName << L' ' << kVersion << tr(Text::DiagnosticsHeading);
+    text << tr(Text::Result) << reason_text(diagnosis.reason, language);
     text << L"\nPID: " << target.pid << L" / class: " << targetClass;
-    text << L"\n本ツール Elevated: " << elevation_value(self) << L" / 対象 Elevated: "
+    text << tr(Text::SelfElevation) << elevation_value(self) << tr(Text::TargetElevation)
          << elevation_value(other);
-    text << L" (1=昇格、0=非昇格、-1=不明)";
-    text << L"\n昇格照会エラー（本ツール/対象）: " << self.error << L" / " << other.error;
-    text << L"\nWM_NCHITTEST エラー: " << diagnosis.error << L" / 最後のHT結果: "
-         << diagnosis.lastHit << L" / 試行点数: " << diagnosis.probes;
-    text << L"\nHT: 2=タイトルバー、1=クライアント、12=上枠、20=閉じる";
-    text << L"\n最後の判定先class: " << inputClass << L" / 親以外への照会: "
-         << diagnosis.routedProbes;
-    text << L" / 別窓との重なり: " << diagnosis.unrelatedPoints << L" / 入力先不明: "
+    text << tr(Text::ElevationLegend);
+    text << tr(Text::ElevationErrors) << self.error << L" / " << other.error;
+    text << tr(Text::HitError) << diagnosis.error << tr(Text::LastHit) << diagnosis.lastHit
+         << tr(Text::Probes) << diagnosis.probes;
+    text << tr(Text::HitLegend);
+    text << tr(Text::InputClass) << inputClass << tr(Text::RoutedProbes) << diagnosis.routedProbes;
+    text << tr(Text::OccludedPoints) << diagnosis.unrelatedPoints << tr(Text::UnresolvedPoints)
          << diagnosis.unresolvedPoints;
     text << std::hex << std::uppercase << std::setfill(L'0');
     text << L"\nStyle: 0x" << std::setw(2 * sizeof(uintptr_t))
@@ -110,21 +112,20 @@ std::wstring format_diagnostics(Identity target, const PlacementResult& placemen
     text << L" / ExStyle: 0x" << std::setw(2 * sizeof(uintptr_t))
          << static_cast<uintptr_t>(GetWindowLongPtrW(target.hwnd, GWL_EXSTYLE));
     text << std::dec;
-    text << L"\nDPI（モニター/対象API）: " << diagnosis.monitorDpi << L" / "
-         << GetDpiForWindow(target.hwnd) << L" / 最大化: " << (IsZoomed(target.hwnd) ? 1 : 0);
+    text << tr(Text::Dpi) << diagnosis.monitorDpi << L" / " << GetDpiForWindow(target.hwnd)
+         << tr(Text::Maximized) << (IsZoomed(target.hwnd) ? 1 : 0);
     text << L"\nWindow: " << diagnosis.window << L"\nFrame: " << diagnosis.frame;
     text << L"\nCaption controls: " << diagnosis.controls
-         << (diagnosis.dwm ? L" (DWM)" : L" (推定)");
+         << (diagnosis.dwm ? L" (DWM)" : tr(Text::Estimated));
     text << L"\nCandidate: " << placement.bounds.value_or(RECT{});
-    text << L"\n基準ボタン: " << diagnosis.referenceIndex
-         << L" (2=最小化、3=最大化、5=閉じる) / 実測: " << diagnosis.referenceButton;
-    text << L"\n実測サイズ採用: " << diagnosis.matchedSize << L" / 間隔px: "
-         << diagnosis.measuredGap << L" / 寸法照会エラー: " << diagnosis.titlebarError;
-    text << L"\n個別位置推定: " << estimateEnabled << L" / 配置計算成功: "
+    text << tr(Text::Reference) << diagnosis.referenceIndex << tr(Text::ReferenceLegend)
+         << diagnosis.referenceButton;
+    text << tr(Text::MatchedSize) << diagnosis.matchedSize << tr(Text::Gap) << diagnosis.measuredGap
+         << tr(Text::MeasurementError) << diagnosis.titlebarError;
+    text << tr(Text::PerWindowEstimate) << estimateEnabled << tr(Text::PlacementSuccess)
          << placement.bounds.has_value();
-    text << L"\n一時停止: " << paused << L" / モニター数: " << monitorCount;
-    text
-        << L"\n\nCtrl+Cでこの画面の内容をコピーできます。\nウィンドウのタイトルやファイル名は取得しません。";
+    text << tr(Text::Paused) << paused << tr(Text::DisplayCount) << monitorCount;
+    text << tr(Text::CopyDiagnostics);
     return text.str();
 }
 } // namespace mtmb

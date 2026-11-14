@@ -16,6 +16,7 @@ constexpr size_t kMaxExclusions = 64;
 constexpr UINT kMonitorCommand = 100, kPauseCommand = 1000, kExcludeCommand = 1001,
                kResetCommand = 1002, kAboutCommand = 1003, kExitCommand = 1004,
                kDiagnoseCommand = 1005, kCompatibilityCommand = 1006, kNumberCommand = 1008;
+constexpr UINT kLanguageCommand = 1100;
 #if defined(_WIN32)
 constexpr UINT kStartupCommand = 1007;
 #endif
@@ -25,6 +26,26 @@ thread_local Application* Application::eventOwner_ = nullptr;
 
 Application::~Application() {
     cleanup();
+}
+
+void Application::apply_language() {
+    state_.language = state_.languagePreference == Language::System ? system_ui_language()
+                                                                    : state_.languagePreference;
+    hide_button();
+#if defined(_WIN32)
+    if (state_.button) {
+        SetWindowTextW(state_.button.get(), tr(Text::OverlayTitle));
+    }
+#endif
+    if (inactive_) {
+        inactive_->update_language();
+    }
+    if (state_.trayAdded) {
+        state_.tray.uFlags = NIF_TIP | NIF_SHOWTIP;
+        StringCchCopyW(state_.tray.szTip, _countof(state_.tray.szTip), tr(Text::TrayTip));
+        Shell_NotifyIconW(NIM_MODIFY, &state_.tray);
+    }
+    request_refresh();
 }
 
 void Application::request_refresh() {
@@ -144,8 +165,7 @@ void Application::end_move(bool failed) {
             rollback.flags |= WPF_ASYNCWINDOWPLACEMENT;
             SetWindowPlacement(previous.target.hwnd, &rollback); // best effort
         }
-        notify(L"ウィンドウの移動を完了できませんでした。応答停止、権限、モニター切断、アプリ固有の"
-               L"制限を確認してください。");
+        notify(tr(Text::MoveFailed));
     }
     request_refresh();
 }
@@ -239,13 +259,13 @@ void Application::start_move(Identity target, int destination) {
     if (IsHungAppWindow(target.hwnd) ||
         !SendMessageTimeoutW(target.hwnd, WM_NULL, 0, 0, SMTO_ABORTIFHUNG | SMTO_BLOCK, 50,
                              &response)) {
-        notify(L"このウィンドウは応答していないか、操作権限がありません。");
+        notify(tr(Text::WindowUnavailable));
         return;
     }
     WINDOWPLACEMENT original{};
     original.length = sizeof(original);
     if (!GetWindowPlacement(target.hwnd, &original)) {
-        notify(L"ウィンドウの位置と状態を取得できませんでした。");
+        notify(tr(Text::WindowStateFailed));
         return;
     }
     state_.move.target = target;
@@ -270,8 +290,7 @@ void Application::move_next(Identity id, int direction) {
         refresh_monitors();
     }
     if (state_.monitors.count < 2) {
-        notify(
-            L"移動先となる別のモニターがありません。Windowsの表示モードを「拡張」にしてください。");
+        notify(tr(Text::NoOtherDisplay));
         return;
     }
     const int current = monitor_index(MonitorFromWindow(id.hwnd, MONITOR_DEFAULTTONEAREST));
@@ -289,11 +308,12 @@ std::array<std::wstring, 2> Application::button_labels(Identity id) const {
     for (int part = 0; part < count; ++part) {
         const int direction = count == 2 && part == 0 ? -1 : 1;
         const int destination = next_index(current, state_.monitors.count, direction);
-        labels[part] = count == 2 ? (part == 0 ? L"前: " : L"次: ") : L"";
-        labels[part] +=
-            state_.monitors.count >= 2 && destination >= 0
-                ? L"画面 " + std::to_wstring(state_.monitors.items[destination].number) + L" へ移動"
-                : L"移動先のモニターがありません（表示プレビュー）";
+        labels[part] = count == 2 ? (part == 0 ? tr(Text::Previous) : tr(Text::Next)) : L"";
+        labels[part] += state_.monitors.count >= 2 && destination >= 0
+                            ? tr(Text::MovePrefix) +
+                                  std::to_wstring(state_.monitors.items[destination].number) +
+                                  tr(Text::MoveSuffix)
+                            : tr(Text::PreviewOnly);
     }
     return labels;
 }
@@ -307,7 +327,7 @@ void Application::configure_monitor_numbers(Identity target) {
     if (!menu) {
         return;
     }
-    AppendMenuW(menu.get(), MF_STRING | MF_GRAYED, 0, L"Windows「識別」の番号を各画面に設定");
+    AppendMenuW(menu.get(), MF_STRING | MF_GRAYED, 0, tr(Text::IdentifyHint));
     std::array<std::wstring, kMaxMonitors> devices;
     const int count = state_.monitors.count;
     constexpr UINT base = 2000, reset = 7000;
@@ -326,10 +346,10 @@ void Application::configure_monitor_numbers(Identity target) {
                         base + i * kMaxMonitors + number - 1, label.c_str());
         }
         const auto label =
-            monitor_label(monitor) +
+            monitor_label(monitor, state_.language) +
             (alive(target) &&
                      MonitorFromWindow(target.hwnd, MONITOR_DEFAULTTONEAREST) == monitor.handle
-                 ? L" （このウィンドウの画面）"
+                 ? tr(Text::CurrentDisplay)
                  : L"");
         if (!AppendMenuW(menu.get(), MF_POPUP | MF_STRING,
                          reinterpret_cast<UINT_PTR>(numbers.get()), label.c_str())) {
@@ -338,7 +358,7 @@ void Application::configure_monitor_numbers(Identity target) {
         numbers.release(); // Parent menu owns its child.
     }
     AppendMenuW(menu.get(), MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu.get(), MF_STRING, reset, L"番号補正を解除して自動に戻す");
+    AppendMenuW(menu.get(), MF_STRING, reset, tr(Text::ResetNumbers));
     POINT cursor{};
     GetCursorPos(&cursor);
     const win32::ScopedFlag menuScope(state_.inMenu, true);
@@ -372,7 +392,7 @@ void Application::configure_monitor_numbers(Identity target) {
         }
     }
     if (error != ERROR_SUCCESS) {
-        notify(L"画面番号の補正を保存できませんでした。");
+        notify(tr(Text::SaveNumbersFailed));
     }
     state_.topologyDirty = true;
     request_refresh();
@@ -383,18 +403,7 @@ void Application::configure_monitor_numbers(Identity target) {
 
 void Application::show_about() {
     const std::wstring text =
-        std::wstring{kAppName} + L" " + kVersion +
-        L" — MIT License\n\n"
-        L"表示中のウィンドウに移動ボタンを重ねます（非アクティブも対象）。\n"
-        L"2画面: 1ボタン / 3画面以上: 番号順の前・次の2ボタン（循環）\n"
-        L"右クリック: 移動先を選択 / マウスを重ねると移動先番号を表示\n\n"
-        L"DLL注入・キーボードフック・通信は行いません。\n"
-        L"サインイン時の自動起動はトレイメニューでオン／オフできます（既定はオフ）。\n"
-        L"親だけでなく、実際の入力先ウィンドウも自動で判定します。\n"
-        L"ボタンが出ない場合も、トレイメニューから移動できます。\n\n"
-        L"試作版: 最大化の移動時には一瞬復元します。\n"
-        L"表示診断と、このウィンドウだけの位置推定をトレイから選べます。\n"
-        L"位置推定はタブ等と重なる場合があります。管理者権限は自動要求しません。";
+        std::wstring{kAppName} + L" " + kVersion + L" — MIT License\n\n" + tr(Text::AboutBody);
     MessageBoxW(nullptr, text.c_str(), kAppName, MB_OK | MB_ICONINFORMATION);
 }
 
@@ -413,8 +422,7 @@ void Application::show_menu(POINT point, Identity target) {
     }
     const bool canMove = eligible(target);
     AppendMenuW(menu, MF_STRING | MF_GRAYED, 0,
-                canMove ? L"移動先（最後に選択したウィンドウ）"
-                        : L"移動するウィンドウがありません");
+                canMove ? tr(Text::Destinations) : tr(Text::NoWindow));
     const int current =
         canMove ? monitor_index(MonitorFromWindow(target.hwnd, MONITOR_DEFAULTTONEAREST)) : -1;
     // Snapshot names: WM_DISPLAYCHANGE can arrive while the popup runs its loop.
@@ -423,27 +431,26 @@ void Application::show_menu(POINT point, Identity target) {
     for (int i = 0; i < shownCount; ++i) {
         names[i] = state_.monitors.items[i].info.szDevice;
         const auto& monitor = state_.monitors.items[i].info;
-        std::wstring label = monitor_label(state_.monitors.items[i]) + L"   " +
+        std::wstring label = monitor_label(state_.monitors.items[i], state_.language) + L"   " +
                              std::to_wstring(monitor.rcMonitor.right - monitor.rcMonitor.left) +
                              L" × " +
                              std::to_wstring(monitor.rcMonitor.bottom - monitor.rcMonitor.top);
         if (monitor.dwFlags & MONITORINFOF_PRIMARY) {
-            label += L" （メイン）";
+            label += tr(Text::Primary);
         }
         AppendMenuW(menu, MF_STRING | (canMove ? 0 : MF_GRAYED) | (i == current ? MF_CHECKED : 0),
                     kMonitorCommand + static_cast<UINT>(i), label.c_str());
     }
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, kNumberCommand, L"画面番号をWindowsに合わせる…");
-    AppendMenuW(menu, MF_STRING | (state_.paused ? MF_CHECKED : 0), kPauseCommand,
-                L"ボタン表示を一時停止");
+    AppendMenuW(menu, MF_STRING, kNumberCommand, tr(Text::MatchNumbers));
+    AppendMenuW(menu, MF_STRING | (state_.paused ? MF_CHECKED : 0), kPauseCommand, tr(Text::Pause));
     AppendMenuW(menu,
                 MF_STRING | (canMove && state_.exclusions.size() < kMaxExclusions ? 0 : MF_GRAYED),
-                kExcludeCommand, L"このウィンドウを除外（今回の起動中）");
+                kExcludeCommand, tr(Text::Exclude));
     AppendMenuW(menu, MF_STRING | (!state_.exclusions.empty() ? 0 : MF_GRAYED), kResetCommand,
-                L"除外を解除");
+                tr(Text::ClearExclusions));
     AppendMenuW(menu, MF_STRING | (alive(target) ? 0 : MF_GRAYED), kDiagnoseCommand,
-                L"このウィンドウの表示を診断");
+                tr(Text::Diagnose));
     AppendMenuW(menu,
                 MF_STRING |
                     (canMove && (compatibility_enabled(target) ||
@@ -451,15 +458,29 @@ void Application::show_menu(POINT point, Identity target) {
                          ? 0
                          : MF_GRAYED) |
                     (compatibility_enabled(target) ? MF_CHECKED : 0),
-                kCompatibilityCommand, L"このウィンドウだけ位置推定で表示（重なり注意）");
+                kCompatibilityCommand, tr(Text::Estimate));
 #if defined(_WIN32)
     const auto startup = startup_status();
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING | (startup.enabled ? MF_CHECKED : 0), kStartupCommand,
-                L"Windowsへのサインイン時に起動(&S)");
+                tr(Text::Startup));
 #endif
-    AppendMenuW(menu, MF_STRING, kAboutCommand, L"使い方・制限");
-    AppendMenuW(menu, MF_STRING, kExitCommand, L"終了");
+    win32::UniqueMenu languages{CreatePopupMenu()};
+    if (languages) {
+        const Text labels[] = {Text::SystemLanguage, Text::English, Text::Japanese};
+        for (UINT i = 0; i < 3; ++i) {
+            AppendMenuW(languages.get(),
+                        MF_STRING |
+                            (static_cast<UINT>(state_.languagePreference) == i ? MF_CHECKED : 0),
+                        kLanguageCommand + i, tr(labels[i]));
+        }
+        if (AppendMenuW(menu, MF_POPUP | MF_STRING, reinterpret_cast<UINT_PTR>(languages.get()),
+                        tr(Text::LanguageMenu))) {
+            languages.release(); // Parent owns the submenu.
+        }
+    }
+    AppendMenuW(menu, MF_STRING, kAboutCommand, tr(Text::About));
+    AppendMenuW(menu, MF_STRING, kExitCommand, tr(Text::Exit));
     // A zero-sized, off-screen tool window acts as the popup owner. Making the
     // owner foreground is required for normal outside-click menu dismissal.
     const HWND previousForeground = GetForegroundWindow();
@@ -495,13 +516,21 @@ void Application::show_menu(POINT point, Identity target) {
             startup.error == ERROR_SUCCESS ? set_startup_enabled(!startup.enabled) : startup.error;
         if (error != ERROR_SUCCESS) {
             const std::wstring message =
-                L"自動起動の設定を変更できませんでした。エラー: " + std::to_wstring(error) +
-                (error == ERROR_FILENAME_EXCED_RANGE
-                     ? L"\nEXEを短いパスのフォルダーへ移動してから設定してください。"
-                     : L"");
+                tr(Text::StartupFailed) + std::to_wstring(error) +
+                (error == ERROR_FILENAME_EXCED_RANGE ? tr(Text::ShorterPath) : L"");
             MessageBoxW(state_.host.get(), message.c_str(), kAppName, MB_OK | MB_ICONERROR);
         }
 #endif
+    } else if (command >= kLanguageCommand && command < kLanguageCommand + 3) {
+        const auto preference = static_cast<Language>(command - kLanguageCommand);
+        const auto error = save_language_preference(preference);
+        if (error == ERROR_SUCCESS) {
+            state_.languagePreference = preference;
+            apply_language();
+        } else {
+            const auto message = tr(Text::LanguageSaveFailed) + std::to_wstring(error);
+            MessageBoxW(state_.host.get(), message.c_str(), kAppName, MB_OK | MB_ICONERROR);
+        }
     } else if (command == kNumberCommand) {
         configure_monitor_numbers(target);
     } else if (command == kAboutCommand) {
@@ -533,8 +562,7 @@ bool Application::add_tray() {
     if (!state_.tray.hIcon) {
         state_.tray.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
     }
-    StringCchCopyW(state_.tray.szTip, _countof(state_.tray.szTip),
-                   L"MoveToMonitorButton — トレイをクリックしてメニューを表示");
+    StringCchCopyW(state_.tray.szTip, _countof(state_.tray.szTip), tr(Text::TrayTip));
     state_.trayAdded = Shell_NotifyIconW(NIM_ADD, &state_.tray) != FALSE;
     if (state_.trayAdded) {
         state_.tray.uVersion = NOTIFYICON_VERSION_4;
@@ -722,6 +750,10 @@ LRESULT Application::on_host(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
     case WM_SYSCOLORCHANGE:
     case WM_DISPLAYCHANGE:
     case WM_SETTINGCHANGE:
+        if (state_.languagePreference == Language::System &&
+            state_.language != system_ui_language()) {
+            apply_language();
+        }
         state_.paletteValid = false;
         state_.topologyDirty = true;
         request_refresh();
@@ -800,7 +832,7 @@ PlacementResult Application::placement_for(Identity target) {
 
 void Application::show_diagnostics(Identity target) {
     if (!alive(target)) {
-        MessageBoxW(nullptr, L"先に調べたいウィンドウを前面にしてください。", kAppName, MB_OK);
+        MessageBoxW(nullptr, tr(Text::SelectWindow), kAppName, MB_OK);
         return;
     }
     {
@@ -816,9 +848,8 @@ void Application::show_diagnostics(Identity target) {
             placement.diagnosis.reason = PlacementReason::Ineligible;
         }
         const auto text = format_diagnostics(target, placement, compatibility_enabled(target),
-                                             state_.paused, state_.monitors.count);
-        MessageBoxW(nullptr, text.c_str(), L"MoveToMonitorButton - 表示診断",
-                    MB_OK | MB_ICONINFORMATION);
+                                             state_.paused, state_.monitors.count, state_.language);
+        MessageBoxW(nullptr, text.c_str(), tr(Text::DiagnosticsTitle), MB_OK | MB_ICONINFORMATION);
     }
     request_refresh();
 }
@@ -992,6 +1023,9 @@ void CALLBACK Application::event_callback(HWINEVENTHOOK, DWORD event, HWND hwnd,
 }
 
 int Application::run(const win32::Options& options) {
+    state_.languagePreference = load_language_preference();
+    state_.language = state_.languagePreference == Language::System ? system_ui_language()
+                                                                    : state_.languagePreference;
     if (options.startupCheck) {
         return 0;
     }
@@ -1015,8 +1049,7 @@ int Application::run(const win32::Options& options) {
         return 1;
     }
     if (mutexError == ERROR_ALREADY_EXISTS) {
-        MessageBoxW(nullptr, L"すでに起動しています。タスクトレイのアイコンを確認してください。",
-                    kAppName, MB_OK);
+        MessageBoxW(nullptr, tr(Text::AlreadyRunning), kAppName, MB_OK);
         return 0;
     }
     WNDCLASSEXW windowClass{};
@@ -1037,14 +1070,13 @@ int Application::run(const win32::Options& options) {
                                       -32000, 0, 0, nullptr, nullptr, state_.instance, this));
     state_.button.reset(CreateWindowExW(
         WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_LAYERED, kButtonClass,
-        L"別のモニターに移動", WS_POPUP, 0, 0, 32, 28, nullptr, nullptr, state_.instance, this));
+        tr(Text::OverlayTitle), WS_POPUP, 0, 0, 32, 28, nullptr, nullptr, state_.instance, this));
     if (!state_.host || !state_.button) {
         return 1;
     }
     state_.taskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
     if (!add_tray()) {
-        MessageBoxW(nullptr, L"タスクトレイに登録できなかったため終了します。", kAppName,
-                    MB_OK | MB_ICONERROR);
+        MessageBoxW(nullptr, tr(Text::TrayFailed), kAppName, MB_OK | MB_ICONERROR);
         return 1;
     }
     inactive_ = std::make_unique<InactiveButtons>(*this);
@@ -1060,7 +1092,7 @@ int Application::run(const win32::Options& options) {
     }
     if (std::any_of(state_.hooks.begin(), state_.hooks.end(),
                     [](const auto& hook) { return !hook; })) {
-        notify(L"一部のウィンドウ通知を取得できません。500ms間隔の確認で動作します。");
+        notify(tr(Text::HookFailed));
     }
     if (!SetTimer(state_.host.get(), kFallbackTimer, 500, nullptr)) {
         return 1;

@@ -2,6 +2,7 @@
 #include "caption_appearance.hpp"
 #include "caption_tooltip.hpp"
 #include "inactive_buttons.hpp"
+#include "locale.hpp"
 #include "placement.hpp"
 #include "win32_helpers.hpp"
 #include <array>
@@ -60,6 +61,7 @@ private:
         std::vector<Identity> exclusions, compatibility;
         MoveOperation move;
 
+        Language languagePreference = Language::System, language = Language::English;
         bool paused = false, hover = false, pressed = false, inMenu = false;
         bool refreshPending = false, refreshing = false;
         bool topologyDirty = true, showOnSingleMonitor = false;
@@ -74,6 +76,11 @@ private:
 
     std::unique_ptr<InactiveButtons> inactive_;
 
+    LPCWSTR tr(Text text) const noexcept {
+        return translate(state_.language, text);
+    }
+
+    void apply_language();
     void request_refresh();
     void hide_button();
     void notify(LPCWSTR message);

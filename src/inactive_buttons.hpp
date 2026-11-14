@@ -17,6 +17,7 @@ public:
     void refresh();
     void on_event(DWORD event, HWND target, LONG object);
     void hide_all();
+    void update_language();
 
 private:
     struct Button {

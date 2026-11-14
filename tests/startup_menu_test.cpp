@@ -1,4 +1,5 @@
 // Actual EXE + real tray menu + current-user Run registration. No API doubles.
+#include "locale.hpp"
 #include "win32_helpers.hpp"
 #include <filesystem>
 #include <iostream>
@@ -91,22 +92,113 @@ struct Product {
         }
     }
 
-    void toggle_startup() {
-        require(PostMessageW(host, WM_APP + 1, 0, WM_CONTEXTMENU) != FALSE,
-                "Cannot open actual tray menu");
-        await(
-            [&] {
-                GUITHREADINFO gui{};
-                gui.cbSize = sizeof(gui);
-                return GetGUIThreadInfo(GetWindowThreadProcessId(host, nullptr), &gui) &&
-                       gui.hwndMenuOwner == host && (gui.flags & GUI_INMENUMODE);
-            },
-            "Actual tray menu did not open");
+    static void key(WORD code) {
         INPUT keys[2]{};
         keys[0].type = keys[1].type = INPUT_KEYBOARD;
-        keys[0].ki.wVk = keys[1].ki.wVk = 'S';
+        keys[0].ki.wVk = keys[1].ki.wVk = code;
         keys[1].ki.dwFlags = KEYEVENTF_KEYUP;
-        require(SendInput(2, keys, sizeof(INPUT)) == 2, "Cannot select startup menu item");
+        require(SendInput(2, keys, sizeof(INPUT)) == 2, "Cannot send menu key");
+    }
+
+    bool in_menu() const {
+        GUITHREADINFO gui{};
+        gui.cbSize = sizeof(gui);
+        return GetGUIThreadInfo(GetWindowThreadProcessId(host, nullptr), &gui) &&
+               gui.hwndMenuOwner == host && (gui.flags & GUI_INMENUMODE);
+    }
+
+    HMENU open_menu() {
+        require(PostMessageW(host, WM_APP + 1, 0, WM_CONTEXTMENU) != FALSE,
+                "Cannot open actual tray menu");
+        HMENU menu{};
+        await(
+            [&] {
+                if (!in_menu()) {
+                    return false;
+                }
+                HWND window{};
+                while ((window = FindWindowExW(nullptr, window, L"#32768", nullptr))) {
+                    DWORD owner{};
+                    GetWindowThreadProcessId(window, &owner);
+                    if (owner != pid || !IsWindowVisible(window)) {
+                        continue;
+                    }
+                    MENUBARINFO info{};
+                    info.cbSize = sizeof(info);
+                    if (GetMenuBarInfo(window, OBJID_CLIENT, 0, &info) && info.hMenu) {
+                        menu = info.hMenu;
+                        return true;
+                    }
+                }
+                return false;
+            },
+            "Actual tray menu did not open");
+        return menu;
+    }
+
+    static std::wstring label(HMENU menu, UINT id) {
+        wchar_t buffer[512]{};
+        MENUITEMINFOW info{};
+        info.cbSize = sizeof(info);
+        info.fMask = MIIM_STRING;
+        info.dwTypeData = buffer;
+        info.cch = _countof(buffer);
+        require(GetMenuItemInfoW(menu, id, FALSE, &info) != FALSE, "Cannot read menu text");
+        return buffer;
+    }
+
+    void verify_language(bool japanese, mtmb::Language preference) {
+        const auto menu = open_menu();
+        require(label(menu, 1004) == (japanese ? L"終了" : L"Exit"), "Wrong actual menu language");
+        require(label(menu, 1007) == (japanese ? L"Windowsへのサインイン時に起動(&S)"
+                                               : L"Start when signing in to Windows (&S)"),
+                "Startup menu was not translated");
+        HMENU languages{};
+        for (int i = 0; i < GetMenuItemCount(menu); ++i) {
+            const auto child = GetSubMenu(menu, i);
+            if (child && GetMenuItemID(child, 0) == 1100) {
+                languages = child;
+                break;
+            }
+        }
+        require(languages && GetMenuItemCount(languages) == 3, "Missing language submenu");
+        for (UINT i = 0; i < 3; ++i) {
+            const auto flags = GetMenuState(languages, 1100 + i, MF_BYCOMMAND);
+            require(flags != static_cast<UINT>(-1) &&
+                        ((flags & MF_CHECKED) != 0) == (i == static_cast<UINT>(preference)),
+                    "Wrong language checkmark");
+        }
+        key(VK_ESCAPE);
+        await([&] { return !in_menu(); }, "Menu did not dismiss");
+    }
+
+    void choose_language(WORD choice, mtmb::Language expected) {
+        open_menu();
+        key('L');
+        // Wait until Windows has opened the submenu before sending its mnemonic.
+        await(
+            [&] {
+                int count = 0;
+                HWND window{};
+                while ((window = FindWindowExW(nullptr, window, L"#32768", nullptr))) {
+                    DWORD owner{};
+                    GetWindowThreadProcessId(window, &owner);
+                    if (owner == pid && IsWindowVisible(window)) {
+                        ++count;
+                    }
+                }
+                return count >= 2;
+            },
+            "Language submenu did not open");
+        key(choice);
+        await([&] { return !in_menu() && mtmb::load_language_preference() == expected; },
+              "Actual language selection was not saved");
+    }
+
+    void toggle_startup() {
+        open_menu();
+        key('S');
+        await([&] { return !in_menu(); }, "Startup menu did not dismiss");
     }
 
     void stop() {
@@ -124,6 +216,21 @@ struct Product {
                 TerminateProcess(process.get(), 1); // test-owned child only
             }
         }
+    }
+};
+
+struct LanguageRegistration {
+    static constexpr auto path = L"Software\\MoveToMonitorButton";
+
+    LanguageRegistration() {
+        const auto error = RegGetValueW(HKEY_CURRENT_USER, path, L"Language", RRF_RT_ANY, nullptr,
+                                        nullptr, nullptr);
+        require(error == ERROR_FILE_NOT_FOUND,
+                "Refusing to change an existing language preference");
+    }
+
+    ~LanguageRegistration() {
+        mtmb::save_language_preference(mtmb::Language::System);
     }
 };
 
@@ -147,27 +254,41 @@ int wmain(int argc, wchar_t** argv) {
         require(argc == 2, "Expected the product EXE path");
         require(!FindWindowW(kHost, nullptr), "A pre-existing product is running");
         Registration registration;
+        LanguageRegistration language;
+        const bool systemJapanese = mtmb::system_ui_language() == mtmb::Language::Japanese;
         TestDirectory folder;
         const auto exe = folder.path / L"MoveToMonitorButton.exe";
         std::filesystem::copy_file(argv[1], exe);
         const std::wstring expected = L"\"" + exe.wstring() + L"\"";
         {
             Product product(expected);
+            product.verify_language(systemJapanese, mtmb::Language::System);
             require(registration.missing(), "Startup must be off by default");
             product.toggle_startup();
             await([&] { return !registration.missing(); }, "Menu did not enable startup");
             require(registration.command() == expected, "EXE path was not quoted exactly");
+            product.choose_language('J', mtmb::Language::Japanese);
+            product.verify_language(true, mtmb::Language::Japanese);
             product.stop();
         }
         {
             Product product(registration.command());
             require(registration.command() == expected, "Startup setting did not persist");
+            product.verify_language(true, mtmb::Language::Japanese);
+            product.choose_language('E', mtmb::Language::English);
+            product.verify_language(false, mtmb::Language::English);
             product.toggle_startup();
             await([&] { return registration.missing(); }, "Menu did not disable startup");
+            product.choose_language('A', mtmb::Language::System);
+            product.verify_language(systemJapanese, mtmb::Language::System);
+            require(RegGetValueW(HKEY_CURRENT_USER, LanguageRegistration::path, L"Language",
+                                 RRF_RT_ANY, nullptr, nullptr, nullptr) == ERROR_FILE_NOT_FOUND,
+                    "Automatic language must remove only the explicit preference");
             product.stop();
         }
-        std::cout << "PASS: actual tray enable/disable, quoted Unicode path, persisted Run "
-                     "registration and registered-command launch; no Windows logoff simulated\n";
+        std::cout
+            << "PASS: actual tray enable/disable, quoted Unicode path, persisted Run "
+               "registration and registered-command launch; actual English/Japanese menu switching, language persistence, and system-default reset; no Windows logoff simulated\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "FAIL: " << error.what() << '\n';

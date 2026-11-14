@@ -23,6 +23,13 @@ int main() {
     using namespace mtmb;
     using namespace mtmb::win32;
     // These calls use the REAL Windows SDK/OS, not the Linux test doubles.
+    CHECK(resolve_language(Language::System, 0x0411) == Language::Japanese);
+    CHECK(resolve_language(Language::System, 0x0409) == Language::English);
+    CHECK(resolve_language(Language::System, 0x0809) == Language::English);
+    CHECK(resolve_language(Language::System, 0x040c) == Language::English);
+    CHECK(resolve_language(Language::English, 0x0411) == Language::English);
+    CHECK(resolve_language(Language::Japanese, 0x0409) == Language::Japanese);
+    CHECK(system_ui_language() == resolve_language(Language::System, GetUserDefaultUILanguage()));
     CHECK(parse_options(L"tool.exe --startup-check").startupCheck);
     CHECK(parse_options(L"\"C:\\日本語 path\\tool.exe\" --startup-check").startupCheck);
     CHECK(parse_options(L"tool.exe \"--startup-check\"").startupCheck);
@@ -107,11 +114,16 @@ int main() {
         result.bounds = RECT{10, 20, 30, 40};
         result.diagnosis.reason = PlacementReason::AccessDenied;
         result.diagnosis.error = ERROR_ACCESS_DENIED;
-        const auto text = format_diagnostics(identity, result, false, false, 2);
+        const auto text = format_diagnostics(identity, result, false, false, 2, Language::Japanese);
         CHECK(text.find(std::wstring{kVersion} + L" 表示診断") != std::wstring::npos);
         CHECK(text.find(L"アクセス拒否 (5)") != std::wstring::npos);
         CHECK(text.find(L"Candidate: 10,20 - 30,40") != std::wstring::npos);
         CHECK(text.find(L"PrivateTitleMustNotBeRead") == std::wstring::npos);
+        const auto english =
+            format_diagnostics(identity, result, false, false, 2, Language::English);
+        CHECK(english.find(L"Display diagnostics") != std::wstring::npos);
+        CHECK(english.find(L"access denied (5)") != std::wstring::npos);
+        CHECK(english.find(L"PrivateTitleMustNotBeRead") == std::wstring::npos);
     }
     CHECK(!IsWindow(rawWindow));
     std::cout << "PASS: " << checks
