@@ -364,7 +364,10 @@ private:
                 diagnosis_.referenceIndex = 2;
                 diagnosis_.referenceButton = button;
                 diagnosis_.controls = {button.left, button.top, frame.right, button.bottom};
-                diagnosis_.measuredGap = 0;
+                // Fractional scaling can round visual/accessibility bounds one
+                // physical pixel beyond the integer hit region (observed at 150%).
+                // Leave one DIP clear instead of overlapping that painted edge.
+                diagnosis_.measuredGap = dip(1, dpi);
                 return button;
             }
         }

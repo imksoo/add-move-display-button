@@ -35,7 +35,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Desktop preflight failed at $percent percent." }
         $selection = if ($ChatGPTOnly) { '-ChatGPTOnly' } else { '-SettingsOnly' }
         & powershell.exe -NoProfile -File (Join-Path $PSScriptRoot 'Test-RealApps.ps1') -ExecutablePath $exe -OutputDirectory $out -RequireWindows11Coverage $selection -ExpectedDpi $dpi
-        if ($LASTEXITCODE -ne 0) { throw "Settings alignment failed at $percent percent." }
+        if ($LASTEXITCODE -ne 0) { throw "Caption alignment failed at $percent percent ($selection)." }
     }
 } finally {
     & $setup $original.percent $original.width $original.height $original.orientation

@@ -286,10 +286,14 @@ if ($RequireWindows11Coverage) {
 }
 if ($ChatGPTOnly) {
     Require ([bool]$RequireWindows11Coverage -and -not $SettingsOnly) 'ChatGPTOnly requires the prepared Windows 11 desktop.'
-    $specs = @($packages | Where-Object Name -like 'OpenAI.*' | ForEach-Object {
-        @{Name=$_.Name; Kind='Package'; Package=$_.Name; RequireNativeMatch=$false}
+    # The app can install additional OpenAI runtime/framework packages after
+    # launch. They have no launchable Applications manifest and are not apps.
+    $specs = @('OpenAI.Codex','OpenAI.ChatGPT-Desktop' | ForEach-Object {
+        @{Name=$_; Kind='Package'; Package=$_; RequireNativeMatch=$false}
     })
-    Require ($specs.Count -gt 0) 'No installed OpenAI desktop package.'
+    foreach ($spec in $specs) {
+        Require (@($packages | Where-Object Name -eq $spec.Package).Count -eq 1) "Required desktop package missing: $($spec.Package)"
+    }
 }
 if ($SettingsOnly) {
     Require ([bool]$RequireWindows11Coverage) 'SettingsOnly requires the prepared Windows 11 desktop.'
