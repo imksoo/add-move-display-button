@@ -2,6 +2,7 @@
 #include "win32_helpers.hpp"
 #include <algorithm>
 #include <chrono>
+#include <commctrl.h>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -60,7 +61,7 @@ LRESULT CALLBACK fixture_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
 struct ApplicationProcess {
     win32::UniqueHandle process, thread;
     DWORD pid{};
-    HWND host{}, overlay{};
+    HWND host{}, overlay{}, tooltip{};
     bool stopped = false;
 
     explicit ApplicationProcess(const std::wstring& exe, bool pair) {
@@ -92,6 +93,10 @@ struct ApplicationProcess {
                     }
                     if (std::wstring_view(name) == L"MoveToMonitorButton.Overlay.v1") {
                         app.overlay = hwnd;
+                    }
+                    if (std::wstring_view(name) == TOOLTIPS_CLASSW &&
+                        GetWindow(hwnd, GW_OWNER) == app.overlay) {
+                        app.tooltip = hwnd;
                     }
                 }
                 return TRUE;
@@ -345,6 +350,28 @@ int wmain(int argc, wchar_t** argv) {
             SetCursorPos(corner.x, corner.y);
             pump(300);
             screenshot_fixture(fixture.get(), L"caption-native-hover.bmp");
+            app.locate();
+            CHECK(app.tooltip);
+            DWORD_PTR tools = 0;
+            CHECK(SendMessageTimeoutW(app.tooltip, TTM_GETTOOLCOUNT, 0, 0,
+                                      SMTO_ABORTIFHUNG | SMTO_BLOCK, 1000, &tools));
+            CHECK(tools == static_cast<DWORD_PTR>(buttonCount));
+            for (int part = 0; part < buttonCount; ++part) {
+                const POINT hover{actual.left + (2 * part + 1) * (actual.right - actual.left) /
+                                                    (2 * buttonCount),
+                                  (actual.top + actual.bottom) / 2};
+                SetCursorPos(hover.x, hover.y);
+                for (int i = 0; i < 60 && !IsWindowVisible(app.tooltip); ++i) {
+                    pump(50);
+                }
+                CHECK(IsWindowVisible(app.tooltip));
+                RECT tip{}, overlap{};
+                CHECK(GetWindowRect(app.tooltip, &tip));
+                CHECK(!IntersectRect(&overlap, &actual, &tip));
+                CHECK(WindowFromPoint(hover) == app.overlay);
+                screenshot_fixture(fixture.get(), part ? L"caption-tooltip-next.bmp"
+                                                       : L"caption-tooltip-previous.bmp");
+            }
             SetCursorPos(oldCursor.x, oldCursor.y);
             CHECK(app.stop());
         }
