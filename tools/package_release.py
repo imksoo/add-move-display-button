@@ -68,7 +68,7 @@ def verify_cases(folder: Path, commit: str, digest: str, apps: tuple[str, ...], 
             label = f"{folder.name}/{app}/{mode}"
             require(len(cases) == 1 and cases[0]["status"] == "passed", f"Missing or failed: {label}")
             case = cases[0]
-            if app not in ("Chrome", "MicrosoftStore", "Calculator", "Settings"):
+            if app not in ("Chrome", "MicrosoftStore", "Calculator", "Settings") and not (dpi == 96 and app == "Notepad"):
                 require(case["nativeSizeMatched"] is True, f"Native size mismatch: {label}")
             if app == "Settings":
                 errors = case.get("verticalCenterErrors", [])

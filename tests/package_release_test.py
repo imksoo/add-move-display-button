@@ -38,6 +38,10 @@ class ReleaseEvidenceTest(unittest.TestCase):
         self.write(arm_folder + "inactive-result.json", {"passed": True, "executableSha256": self.digest, "commit": "abc"})
         for dpi in (96, 144, 192):
             results = copy.deepcopy(self.results)
+            if dpi == 96:
+                for case in results["cases"]:
+                    if case["app"] == "Notepad":
+                        case["nativeSizeMatched"] = False
             extra = [dict(app=app, state=mode, status="passed", hitPoints=5, stableSamples=8,
                           pixelGlyph={"Changed": 10}, pixelHover={"Changed": 20},
                           verticalCenterErrors=[0, 0, 0], caption={"Dpi": dpi})

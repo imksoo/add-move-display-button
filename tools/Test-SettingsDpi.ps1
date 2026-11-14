@@ -18,7 +18,10 @@ try {
         $dpi = [int](96*$percent/100)
         $out = Join-Path $OutputDirectory "settings-dpi-$dpi"
         $null = New-Item -ItemType Directory -Force $out
-        & $setup $percent 1920 1080 | Tee-Object -FilePath (Join-Path $out 'display-scale.json')
+        # Keep at least 720 effective vertical pixels at both scales.
+        $width = if ($percent -eq 200) { 2560 } else { 1920 }
+        $height = if ($percent -eq 200) { 1440 } else { 1080 }
+        & $setup $percent $width $height | Tee-Object -FilePath (Join-Path $out 'display-scale.json')
         if ($LASTEXITCODE -ne 0) { throw "Cannot configure $percent percent display scale." }
         & powershell.exe -NoProfile -File (Join-Path $PSScriptRoot 'Test-DesktopReadiness.ps1') -OutputDirectory $out
         if ($LASTEXITCODE -ne 0) { throw "Desktop preflight failed at $percent percent." }

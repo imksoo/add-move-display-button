@@ -49,6 +49,12 @@ int wmain(int argc, wchar_t** argv) {
             mode.dmPelsWidth = static_cast<DWORD>(std::stoi(argv[2]));
             mode.dmPelsHeight = static_cast<DWORD>(std::stoi(argv[3]));
             mode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
+            DEVMODEW supported{};
+            supported.dmSize = sizeof(supported);
+            for (DWORD index = 0; EnumDisplaySettingsW(nullptr, index, &supported); ++index) {
+                std::cerr << "Supported mode: " << supported.dmPelsWidth << 'x'
+                          << supported.dmPelsHeight << '\n';
+            }
             require(ChangeDisplaySettingsW(&mode, CDS_TEST) == DISP_CHANGE_SUCCESSFUL,
                     "Requested test resolution is not supported");
             require(ChangeDisplaySettingsW(&mode, 0) == DISP_CHANGE_SUCCESSFUL,
