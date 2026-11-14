@@ -10,9 +10,11 @@ public:
     void hide();
 
 private:
+#if defined(_WIN32)
     win32::UniqueWindow window_;
     std::array<std::wstring, 2> labels_;
     int count_ = 0;
     RECT bounds_{};
+#endif
 };
 } // namespace mtmb
