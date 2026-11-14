@@ -14,14 +14,16 @@ $exe = (Resolve-Path -LiteralPath $ExecutablePath).Path
 $original = & $setup | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) { throw 'Cannot read original display configuration.' }
 try {
-    foreach ($percent in @(150,200)) {
+    foreach ($percent in @(200,150)) {
         $dpi = [int](96*$percent/100)
         $out = Join-Path $OutputDirectory "settings-dpi-$dpi"
         $null = New-Item -ItemType Directory -Force $out
-        # Keep at least 720 effective vertical pixels at both scales.
-        $width = if ($percent -eq 200) { 2560 } else { 1920 }
-        $height = if ($percent -eq 200) { 1440 } else { 1080 }
-        & $setup $percent $width $height | Tee-Object -FilePath (Join-Path $out 'display-scale.json')
+        # The host exposes up to 1920x1080. Portrait keeps at least 720
+        # effective vertical pixels for real 200% without a custom driver.
+        $width = if ($percent -eq 200) { 1080 } else { 1920 }
+        $height = if ($percent -eq 200) { 1920 } else { 1080 }
+        $orientation = if ($percent -eq 200) { 1 } else { 0 }
+        & $setup $percent $width $height $orientation | Tee-Object -FilePath (Join-Path $out 'display-scale.json')
         if ($LASTEXITCODE -ne 0) { throw "Cannot configure $percent percent display scale." }
         & powershell.exe -NoProfile -File (Join-Path $PSScriptRoot 'Test-DesktopReadiness.ps1') -OutputDirectory $out
         if ($LASTEXITCODE -ne 0) { throw "Desktop preflight failed at $percent percent." }
@@ -29,6 +31,6 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Settings alignment failed at $percent percent." }
     }
 } finally {
-    & $setup $original.percent $original.width $original.height
+    & $setup $original.percent $original.width $original.height $original.orientation
     if ($LASTEXITCODE -ne 0) { throw 'Cannot restore original display configuration.' }
 }

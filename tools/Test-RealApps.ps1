@@ -128,6 +128,16 @@ function Test-WindowState($spec,$target,[string]$mode) {
         Require ([DesktopProbe]::GetForegroundWindow() -eq $hwnd) 'Test cannot obtain target foreground; not an overlay verdict.'
         Require ([DesktopProbe]::IsZoomed($hwnd) -eq ($mode -eq 'maximized')) 'Target did not reach the requested window state.'
         $caption = [DesktopProbe]::Caption($hwnd)
+        # Only retry an observer timeout while the target settles. A valid native
+        # measurement is still mandatory, before launching the product; preserve
+        # every timeout instead of treating missing metadata as a pass.
+        $result['captionQueryErrors'] = @()
+        $captionDeadline = [DateTime]::UtcNow.AddSeconds(2)
+        while ($spec.RequireNativeMatch -and -not $caption.TitleQueryOk -and $caption.TitleQueryError -eq 1460 -and [DateTime]::UtcNow -lt $captionDeadline) {
+            $result.captionQueryErrors += $caption.TitleQueryError
+            Start-Sleep -Milliseconds 100
+            $caption = [DesktopProbe]::Caption($hwnd)
+        }
         $result.caption = $caption
         if ($ExpectedDpi) { Require ($caption.Dpi -eq $ExpectedDpi) "Actual window DPI $($caption.Dpi) differs from required $ExpectedDpi." }
         if ($RequireWindows11Coverage -and $spec.Name -in @('Settings','Calculator','MicrosoftStore')) {
