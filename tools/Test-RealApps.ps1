@@ -256,6 +256,9 @@ function Test-WindowState($spec,$target,[string]$mode) {
             Require ($glyph.Changed -ge 6) "No visible glyph in button $part."
             $center=$points[5*$part+4]
             $null=[DesktopProbe]::SetCursorPos($center.X,$center.Y)
+            # Observe beyond the default tooltip delay, including its effect on
+            # visibility and input. A brief pre-tooltip hover is insufficient.
+            Start-Sleep -Milliseconds 750
             $hotFile = Join-Path $out "$prefix-hover-$part.png"
             $hoverDeadline=[DateTime]::UtcNow.AddSeconds(2)
             $hoverSamples=0

@@ -58,7 +58,9 @@ void CaptionTooltip::update(HWND owner, const std::array<std::wstring, 2>& label
         tool.cbSize = sizeof(tool);
         tool.hwnd = owner;
         tool.uId = i + 1;
-        tool.uFlags = TTF_SUBCLASS;
+        // Anchor below the whole cell, not beside the cursor: at high DPI the
+        // cursor-relative popup can cover the caption's lower hit-test probes.
+        tool.uFlags = TTF_SUBCLASS | TTF_CENTERTIP;
         tool.rect = {bounds.right * i / count, 0, bounds.right * (i + 1) / count, bounds.bottom};
         tool.lpszText = labels_[i].data();
         SendMessageW(window_.get(), TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM>(&tool));
