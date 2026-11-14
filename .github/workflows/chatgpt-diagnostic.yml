@@ -1,7 +1,5 @@
 name: ChatGPT desktop caption diagnosis
 on:
-  push:
-    branches: [fix/chatgpt-caption]
   workflow_dispatch:
 permissions:
   contents: read
@@ -46,14 +44,7 @@ jobs:
       - name: Install official ChatGPT and ChatGPT Classic from Microsoft Store
         timeout-minutes: 12
         shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          winget --version
-          foreach ($id in @('9PLM9XGG6VKS','9NT1R1C2HH7J')) {
-            winget install --id $id --exact --source msstore --accept-package-agreements --accept-source-agreements --silent --disable-interactivity 2>&1 | Tee-Object "chatgpt-evidence/install-$id.txt"
-            if ($LASTEXITCODE -ne 0) { throw "Store installation failed: $id ($LASTEXITCODE)" }
-          }
-          Get-AppxPackage | Where-Object Name -like 'OpenAI.*' | Select-Object Name,Version,Architecture,PackageFullName,PackageFamilyName,InstallLocation | ConvertTo-Json | Set-Content chatgpt-evidence/packages.json -Encoding UTF8
+        run: ./tools/Install-ChatGPTTestApps.ps1 -OutputDirectory chatgpt-evidence
       - name: Observe actual window styles, caption input routing and product visibility
         shell: powershell
         run: ./tools/Test-RealApps.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -OutputDirectory chatgpt-evidence -RequireWindows11Coverage -ChatGPTOnly

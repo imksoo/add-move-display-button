@@ -467,10 +467,10 @@ private:
         diagnosis_.controls = controls;
         const auto style = static_cast<DWORD_PTR>(GetWindowLongPtrW(id.hwnd, GWL_STYLE));
         const bool custom = !dwm && ((style & WS_CAPTION) != WS_CAPTION || !(style & WS_SYSMENU));
-        bool unavailable = false;
-        const auto measured = custom ? custom_button(frame, monitor.dpi, unavailable)
+        bool measurementUnavailable = false;
+        const auto measured = custom ? custom_button(frame, monitor.dpi, measurementUnavailable)
                                      : measured_button(window, controls, frame, monitor.dpi, dwm);
-        if (unavailable) {
+        if (measurementUnavailable) {
             return false;
         }
         controls = diagnosis_.controls;
