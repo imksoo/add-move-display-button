@@ -160,8 +160,9 @@ void number_monitors(MonitorSet& monitors) {
     sort_monitors(monitors);
 }
 
-std::wstring monitor_label(const Monitor& monitor) {
-    return L"画面 " + std::to_wstring(monitor.number) + L" — " + monitor.name;
+std::wstring monitor_label(const Monitor& monitor, Language language) {
+    return translate(language, Text::DisplayPrefix) + std::to_wstring(monitor.number) + L" — " +
+           monitor.name;
 }
 
 DWORD save_monitor_numbers(const MonitorSet& monitors) {

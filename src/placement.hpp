@@ -1,5 +1,6 @@
 #pragma once
 #include "layout.hpp"
+#include "locale.hpp"
 #include "platform.hpp"
 #include <array>
 #include <optional>
@@ -8,7 +9,7 @@
 
 namespace mtmb {
 inline constexpr wchar_t kAppName[] = L"MoveToMonitorButton";
-inline constexpr wchar_t kVersion[] = L"0.1.12";
+inline constexpr wchar_t kVersion[] = L"0.1.13";
 inline constexpr int kMaxMonitors = 64;
 
 struct Identity {
@@ -103,5 +104,6 @@ struct ElevationQuery {
 
 ElevationQuery process_elevation(DWORD pid);
 std::wstring format_diagnostics(Identity target, const PlacementResult& placement,
-                                bool estimateEnabled, bool paused, int monitorCount);
+                                bool estimateEnabled, bool paused, int monitorCount,
+                                Language language = Language::English);
 } // namespace mtmb

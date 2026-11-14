@@ -11,5 +11,7 @@ void InactiveButtons::refresh() {}
 
 void InactiveButtons::on_event(DWORD, HWND, LONG) {}
 
+void InactiveButtons::update_language() {}
+
 void InactiveButtons::hide_all() {}
 } // namespace mtmb

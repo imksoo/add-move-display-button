@@ -130,6 +130,16 @@ void InactiveButtons::refresh() {
     }
 }
 
+void InactiveButtons::update_language() {
+    for (auto& entry : buttons_) {
+        auto& button = *entry.second;
+        hide(button);
+        if (button.window) {
+            SetWindowTextW(button.window.get(), app_.tr(Text::OverlayTitle));
+        }
+    }
+}
+
 void InactiveButtons::update(Button& button) {
     auto& state = app_.state_;
     if (!app_.eligible(button.target) || GetForegroundWindow() == button.target.hwnd) {
@@ -152,8 +162,8 @@ void InactiveButtons::update(Button& button) {
         // We only move OUR window in z-order; never change the target's owner,
         // styles, subclass or input queue. Our popup follows its target's band.
         button.window.reset(CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED,
-                                            kClass, L"別のモニターに移動", WS_POPUP, 0, 0, 32, 28,
-                                            nullptr, nullptr, state.instance, &button));
+                                            kClass, app_.tr(Text::OverlayTitle), WS_POPUP, 0, 0, 32,
+                                            28, nullptr, nullptr, state.instance, &button));
         if (!button.window) {
             return;
         }

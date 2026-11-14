@@ -33,6 +33,10 @@ Working across two or more monitors? Keep a document beside your browser, move a
 
 With **three or more extended displays**, two buttons appear: previous number and next number. With two displays, one button is enough because both directions lead to the same destination. Movement follows ascending display numbers, independently of their physical left-to-right arrangement.
 
+![Previous and next monitor buttons beside the existing Windows Settings controls at 200% scaling](docs/images/settings-three-display-buttons.png)
+
+*The two-button layout used with three or more displays: left = previous number, right = next. Actual Windows Settings at 200% scaling, captured with the layout-preview option on a single-display test desktop. This image shows the button appearance; it is not a photograph of a physical triple-monitor setup. [Capture source](docs/images/README.md).*
+
 | Current display | Left button: previous | Right button: next |
 |---|---|---|
 | 1 | 3 | 2 |
@@ -43,7 +47,7 @@ Where title-bar space is narrow, the pair uses compact widths while keeping the 
 
 Gaps are preserved: displays 1, 3, and 5 cycle in that order. Disconnected and disabled desktops are excluded after a topology refresh.
 
-Automatic numbering uses Windows display information, but some drivers and configurations differ from Settings → Display → Identify. To match those systems, right-click a button → **「画面番号をWindowsに合わせる…」** (“Match Windows display numbers”), select the item marked **「このウィンドウの画面」** (“this window's display”), and choose the number shown by Windows Identify. The correction persists and applies to both buttons, destination menus, and tooltips. Choosing a number already in use swaps the two. This changes only the utility's labels, not Windows settings.
+Automatic numbering uses Windows display information, but some drivers and configurations differ from Settings → Display → Identify. To match those systems, right-click a button → **Match Windows display numbers…**, select the item marked **this window's display**, and choose the number shown by Windows Identify. The correction persists and applies to both buttons, destination menus, and tooltips. Choosing a number already in use swaps the two. This changes only the utility's labels, not Windows settings.
 
 ## Works with compatible custom title bars
 
@@ -62,17 +66,21 @@ The app checks for space where the window reports a draggable title bar. If it c
 3. Put the EXE in a folder you intend to keep and run it with normal user permissions.
 4. Use the added button to move windows. Right-click the notification-area icon for startup, pause, diagnostics, and exit.
 
-The download is an **x64 EXE**. That same executable is also tested on **Windows 11 Arm** under x64 emulation. The tray menus are currently in Japanese; this README provides the English guide.
+The download is an **x64 EXE**. That same executable is also tested on **Windows 11 Arm** under x64 emulation. Menus, tooltips, diagnostics, and notifications support English and Japanese.
+
+### Choose a language
+
+The app follows your Windows display language by default: Japanese for Japanese Windows, English otherwise. Right-click the tray icon → **Language / 言語** → **English** or **日本語** to switch immediately. Your choice is saved for the current user and survives restarts. Select **Follow Windows display language** to return to automatic selection.
 
 ### Start with Windows
 
-Right-click the tray icon and select **「Windowsへのサインイン時に起動」** (“Start when signing in to Windows”). Startup is off by default and applies only to your current user. Select it again to remove the registration.
+Right-click the tray icon and select **Start when signing in to Windows**. Startup is off by default and applies only to your current user. Select it again to remove the registration.
 
 Before moving or deleting the EXE, turn startup off. If you move it, enable startup again from the new location. If Windows has disabled it under **Settings → Apps → Startup**, check that setting too.
 
 ### Update or remove
 
-Choose **「終了」** (“Exit”) from the old version's tray menu before replacing it. To remove the utility, turn off its startup setting, exit it, and delete the EXE.
+Choose **Exit** from the old version's tray menu before replacing it. To remove the utility, turn off its startup setting, exit it, and delete the EXE.
 
 ## Compatibility and transparency
 

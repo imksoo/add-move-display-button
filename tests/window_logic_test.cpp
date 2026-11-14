@@ -1081,10 +1081,16 @@ int main() {
         sort_monitors(displays);
         CHECK(displays.items[0].number == 1 && displays.items[1].number == 4 &&
               displays.items[2].number == 9);
+        fake::state().language = Language::Japanese;
         const auto labels =
             ApplicationTestAccess::labels(*fake::application, identify(fake::target));
         CHECK(labels[0] == L"前: 画面 4 へ移動");
         CHECK(labels[1] == L"次: 画面 1 へ移動");
+        fake::state().language = Language::English;
+        const auto english =
+            ApplicationTestAccess::labels(*fake::application, identify(fake::target));
+        CHECK(english[0] == L"Previous: Move to display 4");
+        CHECK(english[1] == L"Next: Move to display 1");
         ApplicationTestAccess::move(*fake::application, identify(fake::target), direction);
         CHECK(fake::state().move.destination == (direction < 0 ? L"DISPLAY3" : L"DISPLAY2"));
     }

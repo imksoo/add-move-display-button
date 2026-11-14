@@ -232,6 +232,7 @@ API HRESULT WINAPI DwmGetWindowAttribute(HWND, DWORD, void*, DWORD);
 #define IDC_ARROW reinterpret_cast<LPCWSTR>(static_cast<uintptr_t>(32512))
 #define IDI_APPLICATION reinterpret_cast<LPCWSTR>(static_cast<uintptr_t>(32512))
 #define MF_STRING 0x0000
+#define MF_POPUP 0x0010
 #define MF_GRAYED 0x0001
 #define MF_CHECKED 0x0008
 #define MF_SEPARATOR 0x0800
