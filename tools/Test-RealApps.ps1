@@ -20,6 +20,7 @@ if (@(Get-Process -Name MoveToMonitorButton -ErrorAction SilentlyContinue).Count
 $probe = Join-Path $PSScriptRoot '../tests/desktop/DesktopProbe.cs'
 Add-Type -Path $probe -ReferencedAssemblies System.Drawing.dll
 if ($RequireWindows11Coverage) {
+    Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
     if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Hosted input setup is restricted to disposable GitHub runners.' }
     Add-Type -Path (Join-Path $PSScriptRoot '../tests/desktop/HostedDesktopSetup.cs') -ReferencedAssemblies System.dll,System.Drawing.dll,System.Windows.Forms.dll
 }
@@ -29,7 +30,7 @@ $chromeProfile = Join-Path ([IO.Path]::GetTempPath()) ('mtmb-chrome-'+[guid]::Ne
 $oldCursor = New-Object DesktopProbe+Point
 $null = [DesktopProbe]::GetCursorPos([ref]$oldCursor)
 $os = Get-CimInstance Win32_OperatingSystem
-$packages = @(Get-AppxPackage | Where-Object { $_.Name -match 'WindowsNotepad|WindowsStore|WindowsCalculator' })
+$packages = @(Get-AppxPackage | Where-Object { $_.Name -match 'WindowsNotepad|WindowsStore|WindowsCalculator|immersivecontrolpanel' })
 $evidence = [ordered]@{
     schemaVersion = 1
     commit = $env:GITHUB_SHA
@@ -126,6 +127,17 @@ function Test-WindowState($spec,$target,[string]$mode) {
         Require ([DesktopProbe]::IsZoomed($hwnd) -eq ($mode -eq 'maximized')) 'Target did not reach the requested window state.'
         $caption = [DesktopProbe]::Caption($hwnd)
         $result.caption = $caption
+        if ($spec.Name -eq 'Settings') {
+            $result['childTitlebars'] = @($caption.Children | Where-Object Class -eq 'ApplicationFrameTitleBarWindow' | ForEach-Object { [DesktopProbe]::Caption([IntPtr]$_.Handle) })
+            $element = [System.Windows.Automation.AutomationElement]::FromHandle($hwnd)
+            $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Button)
+            $result['captionAutomation'] = @($element.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition) | ForEach-Object {
+                $info=$_.Current; $r=$info.BoundingRectangle
+                if (-not $info.IsOffscreen -and $r.Width -gt 0 -and $r.Height -gt 0 -and $r.Top -lt ($caption.Frame.Top+100*$caption.Dpi/96) -and $r.Left -gt ($caption.Frame.Right-240*$caption.Dpi/96)) {
+                    [pscustomobject]@{ id=$info.AutomationId; name=$info.Name; left=$r.Left; top=$r.Top; right=$r.Right; bottom=$r.Bottom; process=$info.ProcessId; handle=$info.NativeWindowHandle }
+                }
+            })
+        }
         $prefix = "$($spec.Name)-$mode"
         $baseline = Join-Path $out "$prefix-baseline.png"
         $normal = Join-Path $out "$prefix-normal.png"
@@ -232,6 +244,9 @@ $specs = @(
     @{Name='WPF-fixture'; Kind='Framework'; Framework='WPF'; Package=$null; RequireNativeMatch=$true},
     @{Name='WinForms-fixture'; Kind='Framework'; Framework='WinForms'; Package=$null; RequireNativeMatch=$true}
 )
+if ($RequireWindows11Coverage) {
+    $specs += @{Name='Settings'; Kind='Package'; Package='windows.immersivecontrolpanel'; RequireNativeMatch=$false}
+}
 try {
     Require ([Environment]::UserInteractive) 'No interactive desktop.'
     Save-Evidence
@@ -319,7 +334,7 @@ finally {
 $failures = @($evidence.cases | Where-Object status -eq 'failed')
 Require ($failures.Count -eq 0) "$($failures.Count) real-app test cases failed. See results.json and screenshots."
 if ($RequireWindows11Coverage) {
-    foreach ($required in @('Notepad','Explorer','MicrosoftStore','Calculator')) {
+    foreach ($required in @('Notepad','Explorer','MicrosoftStore','Calculator','Settings')) {
         foreach ($mode in @('normal','maximized','restored-narrow')) {
             $matched=@($evidence.cases | Where-Object { $_.app -eq $required -and $_.state -eq $mode -and $_.status -eq 'passed' })
             Require ($matched.Count -eq 1) "Required Windows 11 coverage missing: $required / $mode"
