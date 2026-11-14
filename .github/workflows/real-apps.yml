@@ -33,10 +33,8 @@ jobs:
         shell: pwsh
         run: |
           ./tools/Test-Startup.ps1 -ExecutablePath build/Release/MoveToMonitorButton.exe -OutputPath build/startup-result.json
-          New-Item -ItemType Directory -Force dist/docs | Out-Null
+          New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item build/Release/MoveToMonitorButton.exe,build/Release/build-info.json,build/startup-result.json,build/test-results.xml,README.md,LICENSE dist/
-          Copy-Item docs/*.md dist/docs/
-          Copy-Item tools/Check-Startup.cmd dist/
           New-Item -ItemType Directory -Force dist/test-programs | Out-Null
           Copy-Item build/Release/inactive_overlay_test.exe dist/test-programs/
           $hash = (Get-FileHash dist/MoveToMonitorButton.exe -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -176,12 +174,6 @@ jobs:
         run: python source/tools/package_release.py dist release-assets --commit "$SOURCE_COMMIT"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: MoveToMonitorButton-0.1.8-real-app-tested
-          path: dist/
-          if-no-files-found: error
-          retention-days: 30
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
           name: github-release-assets
           path: release-assets/
           if-no-files-found: error
@@ -223,9 +215,11 @@ jobs:
                   assert ref['object']['type'] == 'commit' and ref['object']['sha'] == os.environ['GITHUB_SHA'], 'Tag already points elsewhere'
           PYTHON
           (cd release-assets && sha256sum -c SHA256SUMS.txt)
+          cp "docs/releases/$tag.md" release-notes.md
+          printf '\nビルド・テスト: [GitHub Actions](%s/%s/actions/runs/%s)\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> release-notes.md
           gh release create "$tag" release-assets/* --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" --title "MoveToMonitorButton $tag" \
-            --notes-file "docs/releases/$tag.md" --draft
+            --notes-file release-notes.md --draft
           mkdir release-roundtrip
           gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir release-roundtrip
           (cd release-roundtrip && sha256sum -c SHA256SUMS.txt)
