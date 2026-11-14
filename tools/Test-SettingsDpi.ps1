@@ -20,10 +20,13 @@ try {
         $null = New-Item -ItemType Directory -Force $out
         # Try only modes observed on this host. Different orientations can
         # expose different scale ranges; the actual window DPI is checked below.
-        $modes = if ($percent -eq 200) { @(@(1600,1200,0),@(1080,1920,1),@(1200,1600,1)) } else { ,@(1920,1080,0) }
+        $modes = @(@{Width=1920; Height=1080; Orientation=0})
+        if ($percent -eq 200) {
+            $modes = @(@{Width=1600; Height=1200; Orientation=0}, @{Width=1080; Height=1920; Orientation=1}, @{Width=1200; Height=1600; Orientation=1})
+        }
         $configured = $false
         foreach ($mode in $modes) {
-            & $setup $percent $mode[0] $mode[1] $mode[2] | Tee-Object -FilePath (Join-Path $out 'display-scale.json')
+            & $setup $percent $mode.Width $mode.Height $mode.Orientation | Tee-Object -FilePath (Join-Path $out 'display-scale.json')
             if ($LASTEXITCODE -eq 0) { $configured = $true; break }
         }
         if (-not $configured) { throw "Cannot configure $percent percent display scale in any supported mode." }
