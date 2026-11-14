@@ -5,6 +5,7 @@ param(
     [switch]$AllowDesktopCapture,
     [switch]$RequireWindows11Coverage,
     [switch]$SettingsOnly,
+    [switch]$ChatGPTOnly,
     [int]$ExpectedDpi = 0
 )
 $ErrorActionPreference = 'Stop'
@@ -32,7 +33,7 @@ $chromeProfile = Join-Path ([IO.Path]::GetTempPath()) ('mtmb-chrome-'+[guid]::Ne
 $oldCursor = New-Object DesktopProbe+Point
 $null = [DesktopProbe]::GetCursorPos([ref]$oldCursor)
 $os = Get-CimInstance Win32_OperatingSystem
-$packages = @(Get-AppxPackage | Where-Object { $_.Name -match 'WindowsNotepad|WindowsStore|WindowsCalculator|immersivecontrolpanel' })
+$packages = @(Get-AppxPackage | Where-Object { $_.Name -match 'WindowsNotepad|WindowsStore|WindowsCalculator|immersivecontrolpanel|^OpenAI\.' })
 $evidence = [ordered]@{
     schemaVersion = 1
     commit = $env:GITHUB_SHA
@@ -140,7 +141,7 @@ function Test-WindowState($spec,$target,[string]$mode) {
         }
         $result.caption = $caption
         if ($ExpectedDpi) { Require ($caption.Dpi -eq $ExpectedDpi) "Actual window DPI $($caption.Dpi) differs from required $ExpectedDpi." }
-        if ($RequireWindows11Coverage -and $spec.Name -in @('Settings','Calculator','MicrosoftStore')) {
+        if ($RequireWindows11Coverage -and ($ChatGPTOnly -or $spec.Name -in @('Settings','Calculator','MicrosoftStore'))) {
             $result['childTitlebars'] = @($caption.Children | Where-Object Class -eq 'ApplicationFrameTitleBarWindow' | ForEach-Object { [DesktopProbe]::Caption([IntPtr]$_.Handle) })
             $element = [System.Windows.Automation.AutomationElement]::FromHandle($hwnd)
             $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Button)
@@ -150,6 +151,19 @@ function Test-WindowState($spec,$target,[string]$mode) {
                     [pscustomobject]@{ id=$info.AutomationId; name=$info.Name; left=$r.Left; top=$r.Top; right=$r.Right; bottom=$r.Bottom; process=$info.ProcessId; handle=$info.NativeWindowHandle }
                 }
             })
+        }
+        if ($ChatGPTOnly) {
+            $result['captionHitGrid'] = @(
+                foreach ($dy in @(4,12,20,28,36,44)) {
+                    foreach ($column in 1..12) {
+                        $x = [int]($caption.Frame.Left + $caption.Frame.Width*$column/13)
+                        $y = [int]($caption.Frame.Top + $dy*$caption.Dpi/96)
+                        $point = [DesktopProbe+Point]::new($x,$y)
+                        $input = [DesktopProbe]::WindowFromPoint($point)
+                        [pscustomobject]@{ x=$x; y=$y; rootHit=[DesktopProbe]::Hit($hwnd,$x,$y); inputHit=[DesktopProbe]::Hit($input,$x,$y); input=[DesktopProbe]::Describe($input) }
+                    }
+                }
+            )
         }
         $prefix = "$($spec.Name)-$mode"
         $baseline = Join-Path $out "$prefix-baseline.png"
@@ -269,6 +283,13 @@ $specs = @(
 if ($RequireWindows11Coverage) {
     $specs += @{Name='Settings'; Kind='Package'; Package='windows.immersivecontrolpanel'; RequireNativeMatch=$false}
 }
+if ($ChatGPTOnly) {
+    Require ([bool]$RequireWindows11Coverage -and -not $SettingsOnly) 'ChatGPTOnly requires the prepared Windows 11 desktop.'
+    $specs = @($packages | Where-Object Name -like 'OpenAI.*' | ForEach-Object {
+        @{Name=$_.Name; Kind='Package'; Package=$_.Name; RequireNativeMatch=$false}
+    })
+    Require ($specs.Count -gt 0) 'No installed OpenAI desktop package.'
+}
 if ($SettingsOnly) {
     Require ([bool]$RequireWindows11Coverage) 'SettingsOnly requires the prepared Windows 11 desktop.'
     $specs = @($specs | Where-Object Name -eq 'Settings')
@@ -360,7 +381,14 @@ finally {
 $failures = @($evidence.cases | Where-Object status -eq 'failed')
 Require ($failures.Count -eq 0) "$($failures.Count) real-app test cases failed. See results.json and screenshots."
 if ($RequireWindows11Coverage) {
-    $requiredApps = if ($SettingsOnly) { @('Settings') } else { @('Notepad','Explorer','MicrosoftStore','Calculator','Settings') }
+    $requiredApps = if ($ChatGPTOnly) {
+    Require ([bool]$RequireWindows11Coverage -and -not $SettingsOnly) 'ChatGPTOnly requires the prepared Windows 11 desktop.'
+    $specs = @($packages | Where-Object Name -like 'OpenAI.*' | ForEach-Object {
+        @{Name=$_.Name; Kind='Package'; Package=$_.Name; RequireNativeMatch=$false}
+    })
+    Require ($specs.Count -gt 0) 'No installed OpenAI desktop package.'
+}
+if ($SettingsOnly) { @('Settings') } else { @('Notepad','Explorer','MicrosoftStore','Calculator','Settings') }
     foreach ($required in $requiredApps) {
         foreach ($mode in @('normal','maximized','restored-narrow')) {
             $matched=@($evidence.cases | Where-Object { $_.app -eq $required -and $_.state -eq $mode -and $_.status -eq 'passed' })

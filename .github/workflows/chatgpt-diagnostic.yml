@@ -1,0 +1,52 @@
+name: ChatGPT desktop caption diagnosis
+on:
+  push:
+    branches: [fix/chatgpt-caption]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: chatgpt-caption-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  observe:
+    runs-on: windows-11-arm
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Prepare disposable desktop
+        shell: powershell
+        run: ./tools/Initialize-HostedDesktop.ps1 -OutputDirectory chatgpt-evidence/desktop-setup
+      - name: Verify exact two-color capture preflight
+        shell: powershell
+        run: ./tools/Test-DesktopReadiness.ps1 -OutputDirectory chatgpt-evidence
+      - name: Download the published v0.1.10 product
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force app-under-test | Out-Null
+          Invoke-WebRequest -UseBasicParsing https://github.com/imksoo/add-move-display-button/releases/download/v0.1.10/MoveToMonitorButton.exe -OutFile app-under-test/MoveToMonitorButton.exe
+          if ((Get-FileHash app-under-test/MoveToMonitorButton.exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne '2fa8a87b7901d2df5d8021d49b7d3e33ece55f2e490b61b06f63493ab3dc448f') { throw 'Published EXE hash mismatch.' }
+      - name: Install official ChatGPT and ChatGPT Classic from Microsoft Store
+        timeout-minutes: 12
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          winget --version
+          foreach ($id in @('9PLM9XGG6VKS','9NT1R1C2HH7J')) {
+            winget install --id $id --exact --source msstore --accept-package-agreements --accept-source-agreements --silent --disable-interactivity 2>&1 | Tee-Object "chatgpt-evidence/install-$id.txt"
+            if ($LASTEXITCODE -ne 0) { throw "Store installation failed: $id ($LASTEXITCODE)" }
+          }
+          Get-AppxPackage | Where-Object Name -like 'OpenAI.*' | Select-Object Name,Version,Architecture,PackageFullName,PackageFamilyName,InstallLocation | ConvertTo-Json | Set-Content chatgpt-evidence/packages.json -Encoding UTF8
+      - name: Observe actual window styles, caption input routing and product visibility
+        shell: powershell
+        run: ./tools/Test-RealApps.ps1 -ExecutablePath app-under-test/MoveToMonitorButton.exe -OutputDirectory chatgpt-evidence -RequireWindows11Coverage -ChatGPTOnly
+      - name: Preserve diagnosis including failures
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: chatgpt-caption-evidence
+          path: chatgpt-evidence/
+          if-no-files-found: warn
+          retention-days: 14
